@@ -8,6 +8,9 @@ namespace StockSharp.Btce
 	using StockSharp.Algo;
 	using StockSharp.Messages;
 
+	/// <summary>
+	/// The messages adapter for BTC-e.
+	/// </summary>
 	partial class BtceMessageAdapter
 	{
 		private readonly CachedSynchronizedSet<SecurityId> _subscribedLevel1 = new CachedSynchronizedSet<SecurityId>();
@@ -79,7 +82,7 @@ namespace StockSharp.Btce
 				case MarketDataTypes.MarketDepth:
 				{
 					if (mdMsg.IsSubscribe)
-						_subscribedDepths.Add(mdMsg.SecurityId, mdMsg.MaxDepth);
+						_subscribedDepths.Add(mdMsg.SecurityId, mdMsg.MaxDepth ?? MarketDataMessage.DefaultMaxDepth);
 					else
 						_subscribedDepths.Remove(mdMsg.SecurityId);
 

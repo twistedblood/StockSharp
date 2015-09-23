@@ -13,39 +13,42 @@ namespace StockSharp.Oanda
 	using Xceed.Wpf.Toolkit.PropertyGrid.Attributes;
 
 	/// <summary>
-	/// Виды серверов.
+	/// Servers types.
 	/// </summary>
 	public enum OandaServers
 	{
 		/// <summary>
-		/// Демо.
+		/// Demo.
 		/// </summary>
 		[EnumDisplayNameLoc(LocalizedStrings.DemoKey)]
 		Sandbox,
 
 		/// <summary>
-		/// Симулятор.
+		/// Simulator.
 		/// </summary>
 		[EnumDisplayNameLoc(LocalizedStrings.Str1209Key)]
 		Practice,
 
 		/// <summary>
-		/// Реальный.
+		/// Real.
 		/// </summary>
 		[EnumDisplayNameLoc(LocalizedStrings.Str3448Key)]
 		Real,
 	}
 
+	/// <summary>
+	/// The messages adapter for OANDA (REST protocol).
+	/// </summary>
 	[DisplayName("OANDA")]
-	[Category("Forex")]
-	[DescriptionLoc(LocalizedStrings.Str3449Key)]
+	[CategoryLoc(LocalizedStrings.ForexKey)]
+	[DescriptionLoc(LocalizedStrings.Str1770Key, "OANDA")]
 	[CategoryOrderLoc(LocalizedStrings.Str174Key, 0)]
 	[CategoryOrderLoc(LocalizedStrings.Str186Key, 1)]
 	[CategoryOrderLoc(LocalizedStrings.LoggingKey, 2)]
 	partial class OandaMessageAdapter
 	{
 		/// <summary>
-		/// Сервер.
+		/// Server.
 		/// </summary>
 		[CategoryLoc(LocalizedStrings.Str174Key)]
 		[DisplayNameLoc(LocalizedStrings.Str3416Key)]
@@ -54,7 +57,7 @@ namespace StockSharp.Oanda
 		public OandaServers Server { get; set; }
 
 		/// <summary>
-		/// Токен.
+		/// Token.
 		/// </summary>
 		[CategoryLoc(LocalizedStrings.Str174Key)]
 		[DisplayNameLoc(LocalizedStrings.Str3451Key)]
@@ -88,7 +91,7 @@ namespace StockSharp.Oanda
 		});
 
 		/// <summary>
-		/// Доступные тайм-фреймы.
+		/// Available time frames.
 		/// </summary>
 		[Browsable(false)]
 		public static IEnumerable<TimeSpan> TimeFrames
@@ -97,9 +100,9 @@ namespace StockSharp.Oanda
 		}
 
 		/// <summary>
-		/// Сохранить настройки.
+		/// Save settings.
 		/// </summary>
-		/// <param name="storage">Хранилище настроек.</param>
+		/// <param name="storage">Settings storage.</param>
 		public override void Save(SettingsStorage storage)
 		{
 			base.Save(storage);
@@ -109,9 +112,9 @@ namespace StockSharp.Oanda
 		}
 
 		/// <summary>
-		/// Загрузить настройки.
+		/// Load settings.
 		/// </summary>
-		/// <param name="storage">Хранилище настроек.</param>
+		/// <param name="storage">Settings storage.</param>
 		public override void Load(SettingsStorage storage)
 		{
 			base.Load(storage);

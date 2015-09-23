@@ -1,4 +1,4 @@
-﻿namespace StockSharp.Sterling
+namespace StockSharp.Sterling
 {
 	using System;
 	using System.Linq;
@@ -10,6 +10,9 @@
 	using StockSharp.Algo;
 	using StockSharp.Messages;
 
+	/// <summary>
+	/// The message adapter for Sterling.
+	/// </summary>
 	partial class SterlingMessageAdapter
 	{
 		private void ProcessOrderRegisterMessage(OrderRegisterMessage regMsg)
@@ -39,29 +42,29 @@
 
 			if (regMsg.OrderType == OrderTypes.Conditional)
 			{
-				//order.Discretion = condition.Discretion;
-				//order.ExecInst = condition.ExecutionInstruction;
-				//order.ExecBroker = condition.ExecutionBroker;
-				//order.ExecPriceLmt = condition.ExecutionPriceLimit;
-				//order.PegDiff = condition.PegDiff;
-				//order.TrailAmt = condition.TrailingVolume;
-				//order.TrailInc = condition.TrailingIncrement;
-				//order.StpPrice = (double)(condition.StopPrice ?? 0);
-				//order.MinQuantity = condition.MinVolume;
-				//order.AvgPriceLmt = condition.AveragePriceLimit;
-				//order.Duration = condition.Duration;
+				order.Discretion = condition.Discretion.ToDouble();
+				order.ExecInst = condition.ExecutionInstruction.ToSterling();
+				order.ExecBroker = condition.ExecutionBroker;
+				order.ExecPriceLmt = condition.ExecutionPriceLimit.ToDouble();
+				order.PegDiff = condition.PegDiff.ToDouble();
+				order.TrailAmt = condition.TrailingVolume.ToDouble();
+				order.TrailInc = condition.TrailingIncrement.ToDouble();
+				order.StpPrice = condition.StopPrice.ToDouble();
+				order.MinQuantity = condition.MinVolume.ToInt();
+				order.AvgPriceLmt = condition.AveragePriceLimit.ToDouble();
+				order.Duration = condition.Duration ?? 0;
 
-				//order.LocateBroker = condition.LocateBroker;
-				//order.LocateQty = condition.LocateVolume;
-				//order.LocateTime = condition.LocateTime;
+				order.LocateBroker = condition.LocateBroker;
+				order.LocateQty = condition.LocateVolume.ToInt();
+				order.LocateTime = condition.LocateTime.ToSterling();
 
-				//order.OpenClose = condition.Options.IsOpen;
-				//order.Maturity = condition.Options.Maturity;
-				//order.PutCall = condition.Options.Type;
-				//order.Underlying = condition.Options.UnderlyingCode;
-				//order.CoverUncover = condition.Options.IsCover;
-				//order.Instrument = condition.Options.UnderlyingType;
-				//order.StrikePrice = condition.Options.StrikePrice;
+				order.OpenClose = condition.Options.IsOpen.ToSterling();
+				order.Maturity = condition.Options.Maturity.ToSterling();
+				order.PutCall = condition.Options.Type.ToSterling();
+				order.Underlying = condition.Options.UnderlyingCode;
+				order.CoverUncover = condition.Options.IsCover.ToSterling();
+				order.Instrument = condition.Options.UnderlyingType.ToSterling();
+				order.StrikePrice = condition.Options.StrikePrice.ToDouble();
 			}
 
 			order.SubmitOrder();
@@ -162,7 +165,7 @@
 				OrderId = msg.OrderRecordID,
 				TradeId = msg.TradeRecordID,
 				ServerTime = msg.TradeTime.StrToDateTime(),
-				LocalTime = msg.UpdateTime.StrToDateTime()
+				LocalTime = msg.UpdateTime.StrToDateTime().LocalDateTime
 			});
 		}
 
@@ -180,8 +183,8 @@
 				OrderState = msg.OrderStatus.ToOrderStates(),
 				OrderId = msg.OrderRecordID,
 				VisibleVolume = msg.Display,
-				ServerTime =  msg.OrderTime.StrToDateTime(),
-				LocalTime =  msg.UpdateTime.StrToDateTime()
+				ServerTime = msg.OrderTime.StrToDateTime(),
+				LocalTime = msg.UpdateTime.StrToDateTime().LocalDateTime
 			});
 		}
 
@@ -215,7 +218,7 @@
 			var message = new PositionChangeMessage
 			{
 				PortfolioName = msg.bstrAcct,
-				SecurityId = new SecurityId { SecurityCode = msg.bstrSym, BoardCode = "All" },
+				SecurityId = new SecurityId { SecurityCode = msg.bstrSym, BoardCode = AssociatedBoardCode },
 			};
 
 			message.TryAdd(PositionChangeTypes.RealizedPnL, (decimal)msg.fReal);
@@ -247,7 +250,7 @@
 				var m = new PositionMessage
 				{
 					PortfolioName = position.bstrAcct,
-					SecurityId = new SecurityId { SecurityCode = position.bstrSym, BoardCode = "All", SecurityType = position.bstrInstrument.ToSecurityType() },
+					SecurityId = new SecurityId { SecurityCode = position.bstrSym, BoardCode = AssociatedBoardCode, SecurityType = position.bstrInstrument.ToSecurityType() },
 					OriginalTransactionId = message.TransactionId,
 				};
 
@@ -256,7 +259,7 @@
 				var changeMsg = new PositionChangeMessage
 				{
 					PortfolioName = position.bstrAcct,
-					SecurityId = new SecurityId { SecurityCode = position.bstrSym, BoardCode = "All", SecurityType = position.bstrInstrument.ToSecurityType() },
+					SecurityId = new SecurityId { SecurityCode = position.bstrSym, BoardCode = AssociatedBoardCode, SecurityType = position.bstrInstrument.ToSecurityType() },
 					ServerTime = CurrentTime
 				};
 

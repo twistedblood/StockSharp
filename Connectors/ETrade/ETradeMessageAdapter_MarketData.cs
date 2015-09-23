@@ -8,10 +8,13 @@ namespace StockSharp.ETrade
 	using StockSharp.Messages;
 	using StockSharp.Localization;
 
+	/// <summary>
+	/// The messages adapter for ETrade.
+	/// </summary>
 	partial class ETradeMessageAdapter
 	{
 		/// <summary>
-		/// Поддерживается ли торговой системой поиск инструментов.
+		/// Gets a value indicating whether the connector supports security lookup.
 		/// </summary>
 		protected override bool IsSupportNativeSecurityLookup
 		{
@@ -22,7 +25,7 @@ namespace StockSharp.ETrade
 		/// <param name="lookupTransId">Номер транзакции операции Lookup.</param>
 		/// <param name="data">Список инструментов, удовлетворяющих условию поиска.</param>
 		/// <param name="ex">Ошибка поиска.</param>
-		private void ClientOnProductLookupResult(long lookupTransId, List<ProductInfo> data, Exception ex)
+		private void ClientOnProductLookupResult(long lookupTransId, IEnumerable<ProductInfo> data, Exception ex)
 		{
 			if (ex != null)
 			{
@@ -39,7 +42,7 @@ namespace StockSharp.ETrade
 				var secId = new SecurityId
 				{
 					SecurityCode = info.symbol,
-					BoardCode = "EQ",
+					BoardCode = AssociatedBoardCode,
 				};
 
 				var msg = new SecurityMessage

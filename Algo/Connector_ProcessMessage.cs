@@ -85,14 +85,19 @@ namespace StockSharp.Algo
 			}
 		}
 
-		private readonly Dictionary<Security, OrderLogMarketDepthBuilder> _olBuilders = new Dictionary<Security, OrderLogMarketDepthBuilder>();
+		private readonly Dictionary<Security, IOrderLogMarketDepthBuilder> _olBuilders = new Dictionary<Security, IOrderLogMarketDepthBuilder>();
 		private readonly CachedSynchronizedDictionary<IMessageAdapter, ConnectionStates> _adapterStates = new CachedSynchronizedDictionary<IMessageAdapter, ConnectionStates>();
 		private readonly SynchronizedDictionary<SecurityId, Level1DepthBuilder> _level1DepthBuilders = new SynchronizedDictionary<SecurityId, Level1DepthBuilder>();
 		private readonly SynchronizedDictionary<string, QuoteChangeDepthBuilder> _quoteChangeDepthBuilders = new SynchronizedDictionary<string, QuoteChangeDepthBuilder>(StringComparer.InvariantCultureIgnoreCase);
 
+		private string AssociatedBoardCode
+		{
+			get { return Adapter.AssociatedBoardCode; }
+		}
+
 		private bool IsAssociated(string boardCode)
 		{
-			return boardCode.IsEmpty() || boardCode.CompareIgnoreCase(AssociatedBoardCode);
+			return /*boardCode.IsEmpty() || */boardCode.CompareIgnoreCase(AssociatedBoardCode);
 		}
 
 		private void CreateAssociatedSecurityQuotes(QuoteChangeMessage quoteMsg)
@@ -103,13 +108,16 @@ namespace StockSharp.Algo
 			if (quoteMsg.SecurityId.IsDefault())
 				return;
 
+			if (IsAssociated(quoteMsg.SecurityId.BoardCode))
+				return;
+
 			var builder = _quoteChangeDepthBuilders
 				.SafeAdd(quoteMsg.SecurityId.SecurityCode, c => new QuoteChangeDepthBuilder(c, AssociatedBoardCode));
 
-			OnProcessMessage(builder.Process(quoteMsg));
+			ProcessSecurityAction(builder.Process(quoteMsg), m => m.SecurityId, (s, m) => ProcessQuotesMessage(s, m, false), true);
 		}
 
-		private SecurityId CloneSecurityId(SecurityId securityId)
+		private SecurityId CreateAssociatedId(SecurityId securityId)
 		{
 			return new SecurityId
 			{
@@ -455,8 +463,8 @@ namespace StockSharp.Algo
 			var securityCode = securityId.SecurityCode;
 			var boardCode = securityId.BoardCode;
 
-			if (boardCode.IsEmpty())
-				boardCode = AssociatedBoardCode;
+			//if (boardCode.IsEmpty())
+			//	boardCode = AssociatedBoardCode;
 
 			var isSecurityIdEmpty = securityCode.IsEmpty() || boardCode.IsEmpty();
 			var isNativeIdNull = nativeSecurityId == null;
@@ -791,7 +799,7 @@ namespace StockSharp.Algo
 			if (CreateAssociatedSecurity && !IsAssociated(message.SecurityId.BoardCode))
 			{
 				var clone = (SecurityMessage)message.Clone();
-				clone.SecurityId = CloneSecurityId(clone.SecurityId);
+				clone.SecurityId = CreateAssociatedId(clone.SecurityId);
 				ProcessSecurityMessage(clone);
 			}
 		}
@@ -886,12 +894,12 @@ namespace StockSharp.Algo
 				}
 			}
 
-			if (CreateAssociatedSecurity)
+			if (CreateAssociatedSecurity && !IsAssociated(message.SecurityId.BoardCode))
 			{
 				// обновление BestXXX для ALL из конкретных тикеров
 				var clone = (Level1ChangeMessage)message.Clone();
-				clone.SecurityId = CloneSecurityId(clone.SecurityId);
-				OnProcessMessage(clone);
+				clone.SecurityId = CreateAssociatedId(clone.SecurityId);
+				ProcessSecurityAction(clone, m => m.SecurityId, ProcessLevel1ChangeMessage, true);
 			}
 		}
 
@@ -1145,7 +1153,7 @@ namespace StockSharp.Algo
 			{
 				try
 				{
-					var builder = _olBuilders.SafeAdd(security, key => new OrderLogMarketDepthBuilder(new QuoteChangeMessage { SecurityId = message.SecurityId, IsSorted = true }));
+					var builder = _olBuilders.SafeAdd(security, key => MarketDataAdapter.CreateOrderLogMarketDepthBuilder(message.SecurityId));
 					var updated = builder.Update(message);
 					
 					if (updated)
@@ -1227,6 +1235,12 @@ namespace StockSharp.Algo
 			if (message.OrderState != OrderStates.Failed)
 			{
 				var tuple = _entityCache.ProcessOrderMessage(security, message);
+
+				if (tuple == null)
+				{
+					this.AddWarningLog(LocalizedStrings.Str1156Params, message.OrderId.To<string>() ?? message.OrderStringId);
+					return;
+				}
 
 				var order = tuple.Item1;
 				var isNew = tuple.Item2;
@@ -1432,8 +1446,8 @@ namespace StockSharp.Algo
 					if (CreateAssociatedSecurity && !IsAssociated(message.SecurityId.BoardCode))
 					{
 						var clone = (ExecutionMessage)message.Clone();
-						clone.SecurityId = CloneSecurityId(clone.SecurityId);
-						OnProcessMessage(clone);
+						clone.SecurityId = CreateAssociatedId(clone.SecurityId);
+						ProcessExecutionMessage(clone);
 					}
 
 					break;
@@ -1455,9 +1469,12 @@ namespace StockSharp.Algo
 				if (msgs != null)
 					_suspendedSecurityMessages.Remove(securityId);
 
-				// одновременно могут быть сообщения по полному идентификатору и по код + тип
+				// find association by code and code + type
 				var pair = _suspendedSecurityMessages
-					.FirstOrDefault(p => p.Key.SecurityCode.CompareIgnoreCase(securityId.SecurityCode) && (securityId.SecurityType == null || p.Key.SecurityType == securityId.SecurityType));
+					.FirstOrDefault(p =>
+						p.Key.SecurityCode.CompareIgnoreCase(securityId.SecurityCode) &&
+						p.Key.BoardCode.IsEmpty() &&
+						(securityId.SecurityType == null || p.Key.SecurityType == securityId.SecurityType));
 
 				if (pair.Value != null)
 					_suspendedSecurityMessages.Remove(pair.Key);

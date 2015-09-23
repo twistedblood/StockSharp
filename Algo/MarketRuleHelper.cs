@@ -16,7 +16,7 @@ namespace StockSharp.Algo
 	using StockSharp.Localization;
 
 	/// <summary>
-	/// Вспомогательный класс для работы с торговыми правилами <see cref="IMarketRule"/>.
+	/// Вспомогательный класс для работы с <see cref="IMarketRule"/>.
 	/// </summary>
 	public static class MarketRuleHelper
 	{
@@ -614,7 +614,7 @@ namespace StockSharp.Algo
 			public PositionRule(Position position)
 				: this(position, p => true)
 			{
-				Name = LocalizedStrings.Str1042 + position.Portfolio.Name;
+				Name = LocalizedStrings.Str1042 + " " + position.Portfolio.Name;
 			}
 
 			public PositionRule(Position position, Func<Position, bool> changed)
@@ -742,7 +742,7 @@ namespace StockSharp.Algo
 
 				_condition = condition;
 
-				Name = LocalizedStrings.Str1046 + security;
+				Name = LocalizedStrings.Str1046 + " " + security;
 				Connector.SecuritiesChanged += OnSecuritiesChanged;
 			}
 
@@ -778,7 +778,7 @@ namespace StockSharp.Algo
 			public SecurityNewTradesRule(Security security, IConnector connector)
 				: base(security, connector)
 			{
-				Name = LocalizedStrings.Str1047 + security;
+				Name = LocalizedStrings.Str1047 + " " + security;
 				Connector.NewTrades += OnNewTrades;
 			}
 
@@ -826,7 +826,7 @@ namespace StockSharp.Algo
 			public SecurityNewOrderLogItems(Security security, IConnector connector)
 				: base(security, connector)
 			{
-				Name = LocalizedStrings.Str1048 + security;
+				Name = LocalizedStrings.Str1048 + " " + security;
 				Connector.NewOrderLogItems += OnNewOrderLogItems;
 			}
 
@@ -863,7 +863,7 @@ namespace StockSharp.Algo
 
 				_condition = condition;
 
-				Name = LocalizedStrings.Str1049 + security;
+				Name = LocalizedStrings.Str1049 + " " + security;
 
 				Connector.SecuritiesChanged += OnSecuritiesChanged;
 				Connector.NewTrades += OnNewTrades;
@@ -924,7 +924,7 @@ namespace StockSharp.Algo
 			public SecurityMarketDepthChangedRule(Security security, IConnector connector)
 				: base(security, connector)
 			{
-				Name = LocalizedStrings.Str1050 + security;
+				Name = LocalizedStrings.Str1050 + " " + security;
 				Connector.MarketDepthsChanged += OnMarketDepthsChanged;
 			}
 
@@ -948,7 +948,7 @@ namespace StockSharp.Algo
 			public BasketSecurityMarketDepthChangedRule(BasketSecurity security, IConnector connector)
 				: base(security, connector)
 			{
-				Name = LocalizedStrings.Str1050 + security;
+				Name = LocalizedStrings.Str1050 + " " + security;
 				Connector.MarketDepthsChanged += OnMarketDepthsChanged;
 			}
 
@@ -1305,7 +1305,7 @@ namespace StockSharp.Algo
 
 				_condition = condition;
 
-				Name = LocalizedStrings.Str1056 + depth.Security;
+				Name = LocalizedStrings.Str1056 + " " + depth.Security;
 				Depth.QuotesChanged += OnQuotesChanged;
 			}
 
@@ -1541,7 +1541,7 @@ namespace StockSharp.Algo
 
 			protected override void OnProcessCandle(Candle candle)
 			{
-				if (candle.State == CandleStates.Changed && _condition(candle))
+				if (candle.State == CandleStates.Active && _condition(candle))
 					Activate(candle);
 			}
 		}
@@ -1561,7 +1561,7 @@ namespace StockSharp.Algo
 
 			protected override void OnProcessCandle(Candle candle)
 			{
-				if ((candle.State == CandleStates.Started || candle.State == CandleStates.Changed) && _condition(candle))
+				if (candle.State == CandleStates.Active && _condition(candle))
 					Activate(candle);
 			}
 		}
@@ -1598,7 +1598,7 @@ namespace StockSharp.Algo
 
 			protected override void OnProcessCandle(Candle candle)
 			{
-				if (candle.State == CandleStates.Changed && Candle == candle && _condition(Candle))
+				if (candle.State == CandleStates.Active && Candle == candle && _condition(Candle))
 					Activate(Candle);
 			}
 		}
@@ -1730,7 +1730,7 @@ namespace StockSharp.Algo
 		/// <returns>Правило.</returns>
 		public static MarketRule<CandleSeries, Candle> WhenCandlesStarted(this CandleSeries series)
 		{
-			return new CandleStateSeriesRule(series, CandleStates.Started) { Name = LocalizedStrings.Str1072 + " " + series };
+			return new CandleStateSeriesRule(series, CandleStates.Active) { Name = LocalizedStrings.Str1072 + " " + series };
 		}
 
 		/// <summary>
@@ -1760,7 +1760,7 @@ namespace StockSharp.Algo
 		/// <returns>Правило.</returns>
 		public static MarketRule<CandleSeries, Candle> WhenCandles(this CandleSeries series)
 		{
-			return new CandleStateSeriesRule(series, CandleStates.Started, CandleStates.Changed, CandleStates.Finished)
+			return new CandleStateSeriesRule(series, CandleStates.Active, CandleStates.Finished)
 			{
 				Name = LocalizedStrings.Candles + " " + series
 			};
@@ -1882,14 +1882,14 @@ namespace StockSharp.Algo
 				callback();
 			});
 
-			var marketTime = series.Security.ToExchangeTime(connector.CurrentTime);
-			var candleBounds = timeFrame.GetCandleBounds(marketTime, series.Security.Board);
+			var time = connector.CurrentTime;
+			var candleBounds = timeFrame.GetCandleBounds(time, series.Security.Board);
 
 			percent = percent / 100;
 
 			var startTime = candleBounds.Min + TimeSpan.FromMilliseconds(timeFrame.TotalMilliseconds * (double)percent);
 
-			var diff = startTime - marketTime;
+			var diff = startTime - time;
 
 			if (diff == TimeSpan.Zero)
 				timer.Interval(timeFrame);
@@ -2261,7 +2261,7 @@ namespace StockSharp.Algo
 		/// <param name="container">Контейнер правил.</param>
 		/// <param name="rule">Правило.</param>
 		/// <param name="checkCanFinish">Проверять возможность остановки правила.</param>
-		/// <returns><see langword="true"/>, если правило было успешно удалено, false - если правило нельзя удалить в текущий момент.</returns>
+		/// <returns><see langword="true"/>, если правило было успешно удалено, <see langword="false"/> - если правило нельзя удалить в текущий момент.</returns>
 		public static bool TryRemoveRule(this IMarketRuleContainer container, IMarketRule rule, bool checkCanFinish = true)
 		{
 			if (container == null)
@@ -2679,7 +2679,7 @@ namespace StockSharp.Algo
 		/// </summary>
 		/// <typeparam name="TRule">Тип правила.</typeparam>
 		/// <param name="rule">Правило.</param>
-		/// <param name="suspend">True - приостановить, false - возобновить.</param>
+		/// <param name="suspend"><see langword="true"/> - приостановить, <see langword="false"/> - возобновить.</param>
 		/// <returns>Правило.</returns>
 		public static TRule Suspend<TRule>(this TRule rule, bool suspend)
 			where TRule : IMarketRule
@@ -2688,11 +2688,11 @@ namespace StockSharp.Algo
 		}
 
 		///// <summary>
-		///// Синхронизовать или рассинхронизовать реагирование правила с другими правилами.
+		///// Синхронизировать или рассинхронизировать реагирование правила с другими правилами.
 		///// </summary>
 		///// <typeparam name="TRule">Тип правила.</typeparam>
 		///// <param name="rule">Правило.</param>
-		///// <param name="syncToken">Объект синхронизации. Если значение равно null, то правило рассинхронизовывается.</param>
+		///// <param name="syncToken">Объект синхронизации. Если значение равно <see langword="null"/>, то правило рассинхронизовывается.</param>
 		///// <returns>Правило.</returns>
 		//public static TRule Sync<TRule>(this TRule rule, SyncObject syncToken)
 		//	where TRule : IMarketRule

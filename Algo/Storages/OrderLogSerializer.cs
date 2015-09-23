@@ -22,6 +22,11 @@ namespace StockSharp.Algo.Storages
 			Portfolios = new List<string>();
 		}
 
+		public override object LastId
+		{
+			get { return LastTransactionId; }
+		}
+
 		public long FirstOrderId { get; set; }
 		public long LastOrderId { get; set; }
 
@@ -76,6 +81,11 @@ namespace StockSharp.Algo.Storages
 				return;
 
 			stream.Write(ServerOffset);
+
+			if (Version < MarketDataVersions.Version52)
+				return;
+
+			WriteOffsets(stream);
 		}
 
 		public override void Read(Stream stream)
@@ -118,9 +128,14 @@ namespace StockSharp.Algo.Storages
 				return;
 
 			ServerOffset = stream.Read<TimeSpan>();
+
+			if (Version < MarketDataVersions.Version52)
+				return;
+
+			ReadOffsets(stream);
 		}
 
-		protected override void CopyFrom(OrderLogMetaInfo src)
+		public override void CopyFrom(OrderLogMetaInfo src)
 		{
 			base.CopyFrom(src);
 
@@ -148,7 +163,7 @@ namespace StockSharp.Algo.Storages
 		public OrderLogSerializer(SecurityId securityId)
 			: base(securityId, 200)
 		{
-			Version = MarketDataVersions.Version50;
+			Version = MarketDataVersions.Version52;
 		}
 
 		protected override void OnSave(BitArrayWriter writer, IEnumerable<ExecutionMessage> items, OrderLogMetaInfo metaInfo)
@@ -157,7 +172,7 @@ namespace StockSharp.Algo.Storages
 			{
 				var item = items.First();
 
-				metaInfo.FirstOrderId = metaInfo.LastOrderId = item.GetOrderId();
+				metaInfo.FirstOrderId = metaInfo.LastOrderId = item.SafeGetOrderId();
 				metaInfo.FirstTransactionId = metaInfo.LastTransactionId = item.TransactionId;
 				metaInfo.ServerOffset = item.ServerTime.Offset;
 			}
@@ -166,12 +181,13 @@ namespace StockSharp.Algo.Storages
 
 			var allowNonOrdered = metaInfo.Version >= MarketDataVersions.Version47;
 			var isUtc = metaInfo.Version >= MarketDataVersions.Version48;
+			var allowDiffOffsets = metaInfo.Version >= MarketDataVersions.Version52;
 
 			foreach (var item in items)
 			{
 				var hasTrade = item.TradeId != null || item.TradePrice != null;
 
-				var orderId = item.GetOrderId();
+				var orderId = item.SafeGetOrderId();
 				if (orderId < 0)
 					throw new ArgumentOutOfRangeException("items", orderId, LocalizedStrings.Str925);
 
@@ -181,7 +197,7 @@ namespace StockSharp.Algo.Storages
 				//if (item.Price < 0)
 				//	throw new ArgumentOutOfRangeException("items", item.Price, LocalizedStrings.Str926Params.Put(item.OrderId));
 
-				var volume = item.GetVolume();
+				var volume = item.SafeGetVolume();
 				if (volume <= 0)
 					throw new ArgumentOutOfRangeException("items", volume, LocalizedStrings.Str927Params.Put(item.OrderId));
 
@@ -232,7 +248,9 @@ namespace StockSharp.Algo.Storages
 
 				writer.Write(item.Side == Sides.Buy);
 
-				metaInfo.LastTime = writer.WriteTime(item.ServerTime, metaInfo.LastTime, LocalizedStrings.Str1013, allowNonOrdered, isUtc, metaInfo.ServerOffset);
+				var lastOffset = metaInfo.LastServerOffset;
+				metaInfo.LastTime = writer.WriteTime(item.ServerTime, metaInfo.LastTime, LocalizedStrings.Str1013, allowNonOrdered, isUtc, metaInfo.ServerOffset, allowDiffOffsets, ref lastOffset);
+				metaInfo.LastServerOffset = lastOffset;
 
 				if (hasTrade)
 				{
@@ -297,11 +315,19 @@ namespace StockSharp.Algo.Storages
 
 				writer.Write(!isEmptyPf);
 
-				if (isEmptyPf)
+				if (!isEmptyPf)
+				{
+					metaInfo.Portfolios.TryAdd(item.PortfolioName);
+					writer.WriteInt(metaInfo.Portfolios.IndexOf(item.PortfolioName));	
+				}
+
+				if (metaInfo.Version < MarketDataVersions.Version51)
 					continue;
 
-				metaInfo.Portfolios.TryAdd(item.PortfolioName);
-				writer.WriteInt(metaInfo.Portfolios.IndexOf(item.PortfolioName));
+				writer.Write(item.Currency != null);
+
+				if (item.Currency != null)
+					writer.WriteInt((int)item.Currency.Value);
 			}
 		}
 
@@ -332,10 +358,13 @@ namespace StockSharp.Algo.Storages
 
 			var allowNonOrdered = metaInfo.Version >= MarketDataVersions.Version47;
 			var isUtc = metaInfo.Version >= MarketDataVersions.Version48;
+			var allowDiffOffsets = metaInfo.Version >= MarketDataVersions.Version52;
 
 			var prevTime = metaInfo.FirstTime;
-			var serverTime = reader.ReadTime(ref prevTime, allowNonOrdered, isUtc, metaInfo.GetTimeZone(isUtc, SecurityId));
+			var lastOffset = metaInfo.FirstServerOffset;
+			var serverTime = reader.ReadTime(ref prevTime, allowNonOrdered, isUtc, metaInfo.GetTimeZone(isUtc, SecurityId), allowDiffOffsets, ref lastOffset);
 			metaInfo.FirstTime = prevTime;
+			metaInfo.FirstServerOffset = lastOffset;
 
 			var execMsg = new ExecutionMessage
 			{
@@ -418,6 +447,12 @@ namespace StockSharp.Algo.Storages
 
 			//if (order.Portfolio == null)
 			//	order.Portfolio = Portfolio.AnonymousPortfolio;
+
+			if (metaInfo.Version >= MarketDataVersions.Version51)
+			{
+				if (reader.Read())
+					execMsg.Currency = (CurrencyTypes)reader.ReadInt();
+			}
 
 			return execMsg;
 		}

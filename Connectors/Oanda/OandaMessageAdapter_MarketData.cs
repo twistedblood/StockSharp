@@ -6,9 +6,11 @@ namespace StockSharp.Oanda
 
 	using StockSharp.Algo;
 	using StockSharp.Messages;
-	using StockSharp.Localization;
 	using StockSharp.Oanda.Native.DataTypes;
 
+	/// <summary>
+	/// The messages adapter for OANDA (REST protocol).
+	/// </summary>
 	partial class OandaMessageAdapter
 	{
 		private void ProcessSecurityLookupMessage(SecurityLookupMessage message)
@@ -66,7 +68,7 @@ namespace StockSharp.Oanda
 					if (message.IsSubscribe)
 					{
 						var calendar = _restClient.GetCalendar(message.SecurityId.ToOanda(),
-							(int)(3600 * message.Count));
+							(int)(3600 * (message.Count ?? 1)));
 
 						foreach (var item in calendar)
 						{
@@ -74,7 +76,7 @@ namespace StockSharp.Oanda
 							{
 								//OriginalTransactionId = message.TransactionId,
 								SecurityId = message.SecurityId,
-								ServerTime = TimeHelper.GregorianStart.AddSeconds(item.TimeStamp),
+								ServerTime = TimeHelper.GregorianStart.AddSeconds(item.TimeStamp).ApplyTimeZone(TimeZoneInfo.Utc),
 								Headline = item.Title,
 								Story = "unit={0} curr={1} market={2} forecast={3} previous={4} actual={5}"
 									.Put(item.Unit, item.Currency, item.Market, item.Forecast, item.Previous, item.Actual),
@@ -93,7 +95,7 @@ namespace StockSharp.Oanda
 						while (true)
 						{
 							var candles = _restClient.GetCandles(message.SecurityId.ToOanda(),
-								((TimeSpan)message.Arg).ToOanda(), message.Count, from.ToOanda());
+								((TimeSpan)message.Arg).ToOanda(), message.Count ?? 0, (from ?? DateTimeOffset.MinValue).ToOanda());
 
 							var count = 0;
 
@@ -113,13 +115,13 @@ namespace StockSharp.Oanda
 									LowPrice = (decimal)candle.Low,
 									ClosePrice = (decimal)candle.Close,
 									TotalVolume = (decimal)candle.Volume,
-									State = candle.Complete ? CandleStates.Finished : CandleStates.Started
+									State = candle.Complete ? CandleStates.Finished : CandleStates.Active
 								});
 
 								from = time;
 							}
 
-							if (message.Count == 0 && count == 500)
+							if (message.Count == null && count == 500)
 								continue;
 
 							break;

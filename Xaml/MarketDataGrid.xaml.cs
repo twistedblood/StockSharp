@@ -24,7 +24,7 @@ namespace StockSharp.Xaml
 	using Query = System.Tuple<Algo.Storages.IStorageRegistry, BusinessEntities.Security, Algo.Storages.StorageFormats, Algo.Storages.IMarketDataDrive>;
 
 	/// <summary>
-	/// Таблица доступных рыночных данных.
+	/// The table of available market data.
 	/// </summary>
 	public partial class MarketDataGrid
 	{
@@ -115,17 +115,17 @@ namespace StockSharp.Xaml
 		private bool _isChanged;
 
 		/// <summary>
-		/// Событие начала загрузки данных.
+		/// The data loading start event.
 		/// </summary>
 		public event Action DataLoading;
 
 		/// <summary>
-		/// Событие окончания загрузки данных.
+		/// The data loading end event.
 		/// </summary>
 		public event Action DataLoaded;
 
 		/// <summary>
-		/// Создать <see cref="MarketDataGrid"/>.
+		/// Initializes a new instance of the <see cref="MarketDataGrid"/>.
 		/// </summary>
 		public MarketDataGrid()
 		{
@@ -167,7 +167,7 @@ namespace StockSharp.Xaml
 		private readonly IList<DataGridColumn> _serializableColumns;
 
 		/// <summary>
-		/// Сохраняемые колонки.
+		/// Saved columns.
 		/// </summary>
 		protected override IList<DataGridColumn> SerializableColumns
 		{
@@ -175,12 +175,12 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// Обновить таблицу. Выполняется асинхронно.
+		/// To refresh the table. It is carried out asynchronously.
 		/// </summary>
-		/// <param name="storageRegistry">Хранилище маркет-данных.</param>
-		/// <param name="security">Инструмент.</param>
-		/// <param name="format">Формат данных.</param>
-		/// <param name="drive">Хранилище.</param>
+		/// <param name="storageRegistry">Market-data storage.</param>
+		/// <param name="security">Security.</param>
+		/// <param name="format">Data format.</param>
+		/// <param name="drive">Storage.</param>
 		public void BeginMakeEntries(IStorageRegistry storageRegistry, Security security, StorageFormats format, IMarketDataDrive drive)
 		{
 			if (storageRegistry == null)
@@ -203,7 +203,7 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// Отменить операцию, запущенная через <see cref="BeginMakeEntries"/>.
+		/// To cancel the operation launched by <see cref="BeginMakeEntries"/>.
 		/// </summary>
 		public void CancelMakeEntires()
 		{
@@ -337,10 +337,10 @@ namespace StockSharp.Xaml
 				});
 			}
 
-			Add(dict, storageRegistry.GetTickMessageStorage(security, drive, format), candleNames, e => e.IsTick = true);
-			Add(dict, storageRegistry.GetQuoteMessageStorage(security, drive, format), candleNames, e => e.IsDepth = true);
-			Add(dict, storageRegistry.GetLevel1MessageStorage(security, drive, format), candleNames, e => e.IsLevel1 = true);
-			Add(dict, storageRegistry.GetOrderLogMessageStorage(security, drive, format), candleNames, e => e.IsOrderLog = true);
+			Add(dict, storageRegistry.GetTickMessageStorage(security, drive, format).Dates, candleNames, e => e.IsTick = true);
+			Add(dict, storageRegistry.GetQuoteMessageStorage(security, drive, format).Dates, candleNames, e => e.IsDepth = true);
+			Add(dict, storageRegistry.GetLevel1MessageStorage(security, drive, format).Dates, candleNames, e => e.IsLevel1 = true);
+			Add(dict, storageRegistry.GetOrderLogMessageStorage(security, drive, format).Dates, candleNames, e => e.IsOrderLog = true);
 
 			foreach (var c in candleNames)
 			{
@@ -353,25 +353,28 @@ namespace StockSharp.Xaml
 				}
 
 				var tuple = candles[candleName];
-				Add(dict, storageRegistry.GetCandleMessageStorage(tuple.Item1, security, tuple.Item2, drive, format), candleNames, e => e.Candles[candleName] = true);
+				Add(dict, storageRegistry.GetCandleMessageStorage(tuple.Item1, security, tuple.Item2, drive, format).Dates, candleNames, e => e.Candles[candleName] = true);
 			}
 
 			if (dict.Count > 0)
 			{
-				// добавляем рабочие дни, которые отсутствуют в данных
+				// add gaps by working days
 				var emptyDays = dict.Keys.Min().Range(dict.Keys.Max(), TimeSpan.FromDays(1))
-					.Where(d => security.Board.WorkingTime.IsTradeDate(d, true) && !dict.ContainsKey(d));
+					.Where(d => !dict.ContainsKey(d)/* && security.Board.WorkingTime.IsTradeDate(d, true)*/)
+					.OrderBy()
+					.ToList();
 
-				foreach (var batch in emptyDays.Batch(10))
+				foreach (var monthGroup in emptyDays.ToArray().GroupBy(d => new DateTime(d.Year, d.Month, 1)))
 				{
-					lock (_syncObject)
-					{
-						if (_isChanged)
-							return;
-					}
+					var firstDay = monthGroup.First();
+					var lastDay = monthGroup.Last();
 
-					TryAddEntries(dict, batch, candleNames, e => { });
+					// whole month do not have any values
+					if (firstDay.Day == 1 && lastDay.Day == monthGroup.Key.DaysInMonth())
+						emptyDays.RemoveRange(monthGroup);
 				}
+
+				Add(dict, emptyDays, candleNames, e => { });
 			}
 
 			lock (_syncObject)
@@ -383,7 +386,7 @@ namespace StockSharp.Xaml
 			this.GuiSync(RefreshSort);
 		}
 
-		private void Add(IDictionary<DateTime, MarketDataEntry> dict, IMarketDataStorage storage, string[] candleKeys, Action<MarketDataEntry> action)
+		private void Add(IDictionary<DateTime, MarketDataEntry> dict, IEnumerable<DateTime> dates, string[] candleKeys, Action<MarketDataEntry> action)
 		{
 			lock (_syncObject)
 			{
@@ -391,7 +394,7 @@ namespace StockSharp.Xaml
 					return;
 			}
 
-			foreach (var batch in storage.Dates.Batch(10))
+			foreach (var batch in dates.Batch(10))
 			{
 				lock (_syncObject)
 				{

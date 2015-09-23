@@ -2,6 +2,7 @@ namespace StockSharp.Xaml
 {
 	using System;
 	using System.Collections.Generic;
+	using System.Linq;
 	using System.Windows;
 	using System.Windows.Controls;
 
@@ -16,25 +17,25 @@ namespace StockSharp.Xaml
 	using StockSharp.Localization;
 
 	/// <summary>
-	/// Окно для создания заявки.
+	/// The window for the order creating.
 	/// </summary>
 	public partial class OrderWindow
 	{
 		private enum OrderWindowTif
 		{
-			[EnumDisplayNameLoc(LocalizedStrings.Str1539Key)]
+			[EnumDisplayNameLoc(LocalizedStrings.GTCKey)]
 			Gtc,
 
-			[EnumDisplayNameLoc(LocalizedStrings.Str406Key)]
+			[EnumDisplayNameLoc(LocalizedStrings.FOKKey)]
 			MatchOrCancel,
 
-			[EnumDisplayNameLoc(LocalizedStrings.Str407Key)]
+			[EnumDisplayNameLoc(LocalizedStrings.IOCKey)]
 			CancelBalance,
 
 			[EnumDisplayNameLoc(LocalizedStrings.SessionKey)]
 			Today,
 
-			[EnumDisplayNameLoc(LocalizedStrings.XamlStr114Key)]
+			[EnumDisplayNameLoc(LocalizedStrings.GTDKey)]
 			Gtd,
 		}
 
@@ -98,7 +99,7 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// Создать <see cref="OrderWindow"/>.
+		/// Initializes a new instance of the <see cref="OrderWindow"/>.
 		/// </summary>
 		public OrderWindow()
 		{
@@ -113,7 +114,7 @@ namespace StockSharp.Xaml
 		private SecurityData Data { get; set; }
 
 		/// <summary>
-		/// Подключение к торговой системе.
+		/// Connection to the trading system.
 		/// </summary>
 		public IConnector Connector
 		{
@@ -136,7 +137,7 @@ namespace StockSharp.Xaml
 		private IMarketDataProvider _marketDataProvider;
 
 		/// <summary>
-		/// Поставщик маркет-данных.
+		/// The market data provider.
 		/// </summary>
 		public IMarketDataProvider MarketDataProvider
 		{
@@ -162,7 +163,7 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// Поставщик информации об инструментах.
+		/// The provider of information about instruments.
 		/// </summary>
 		public FilterableSecurityProvider SecurityProvider
 		{
@@ -173,7 +174,7 @@ namespace StockSharp.Xaml
 		private Order _order;
 
 		/// <summary>
-		/// Заявка.
+		/// Order.
 		/// </summary>
 		public Order Order
 		{
@@ -182,10 +183,12 @@ namespace StockSharp.Xaml
 				_order.Type = IsMarketCtrl.IsChecked == true ? OrderTypes.Market : OrderTypes.Limit;
 				_order.Security = Security;
 				_order.Portfolio = Portfolio;
+				_order.ClientCode = ClientCodeCtrl.Text;
 				_order.Price = PriceCtrl.Value ?? 0;
 				_order.Volume = VolumeCtrl.Value ?? 0;
 				_order.VisibleVolume = VisibleVolumeCtrl.Value;
 				_order.Direction = IsBuyCtrl.IsChecked == true ? Sides.Buy : Sides.Sell;
+				_order.Comment = CommentCtrl.Text;
 
 				switch ((OrderWindowTif?)TimeInForceCtrl.SelectedValue)
 				{
@@ -200,7 +203,7 @@ namespace StockSharp.Xaml
 						break;
 					case OrderWindowTif.Today:
 						_order.TimeInForce = TimeInForce.PutInQueue;
-						_order.ExpiryDate = DateTimeOffset.Now.Date.ApplyTimeZone(Security.Board.Exchange.TimeZoneInfo);
+						_order.ExpiryDate = (DateTimeOffset.Now.Date + TimeHelper.LessOneDay).ApplyTimeZone(Security.Board.Exchange.TimeZoneInfo);
 						break;
 					case OrderWindowTif.Gtd:
 						_order.TimeInForce = TimeInForce.PutInQueue;
@@ -241,37 +244,37 @@ namespace StockSharp.Xaml
 
 				Security = value.Security;
 				Portfolio = value.Portfolio;
-				PriceCtrl.Value = value.Price == 0 ? (decimal?)null : value.Price;
-				VolumeCtrl.Value = value.Volume == 0 ? (decimal?)null : value.Volume;
+				ClientCodeCtrl.Text = value.ClientCode;
+				PriceCtrl.Value = value.Price == 0 ? PriceCtrl.Increment : value.Price;
+				VolumeCtrl.Value = value.Volume == 0 ? VolumeCtrl.Increment : value.Volume;
 				VisibleVolumeCtrl.Value = value.VisibleVolume;
 				IsBuyCtrl.IsChecked = value.Direction == Sides.Buy;
 				IsSellCtrl.IsChecked = value.Direction == Sides.Sell;
+				CommentCtrl.Text = value.Comment;
 
 				switch (value.TimeInForce)
 				{
+					case null:
 					case TimeInForce.PutInQueue:
 					{
 						if (value.ExpiryDate == null || value.ExpiryDate == DateTimeOffset.MaxValue)
 							TimeInForceCtrl.SelectedValue = OrderWindowTif.Gtc;
-						else if (value.ExpiryDate == DateTimeOffset.Now.Date.ApplyTimeZone(Security.Board.Exchange.TimeZoneInfo))
+						else if (value.ExpiryDate == (DateTimeOffset.Now.Date + TimeHelper.LessOneDay).ApplyTimeZone(Security.Board.Exchange.TimeZoneInfo))
 							TimeInForceCtrl.SelectedValue = OrderWindowTif.Today;
 						else
 						{
 							TimeInForceCtrl.SelectedValue = OrderWindowTif.Gtd;
-							ExpiryDate.Value = value.ExpiryDate == DateTimeOffset.MaxValue ? (DateTime?)null : value.ExpiryDate.Value.Date;
+							ExpiryDate.Value = value.ExpiryDate.Value.Date;
 							//throw new ArgumentOutOfRangeException("value", value.ExpiryDate, LocalizedStrings.Str1541);
 						}
 
 						break;
 					}
 					case TimeInForce.MatchOrCancel:
-						TimeInForceCtrl.SelectedValue = OrderWindowTif.Gtc;
+						TimeInForceCtrl.SelectedValue = OrderWindowTif.MatchOrCancel;
 						break;
 					case TimeInForce.CancelBalance:
-						TimeInForceCtrl.SelectedValue = OrderWindowTif.Gtc;
-						break;
-					case null:
-						TimeInForceCtrl.SelectedValue = null;
+						TimeInForceCtrl.SelectedValue = OrderWindowTif.CancelBalance;
 						break;
 					default:
 						throw new ArgumentOutOfRangeException();
@@ -527,7 +530,9 @@ namespace StockSharp.Xaml
 
 		private void TimeInForceCtrl_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
 		{
-			ExpiryDate.IsEnabled = TimeInForceCtrl.SelectedValue as OrderWindowTif? == OrderWindowTif.Gtd;
+			var member = e.AddedItems.Cast<EnumComboBoxHelper.EnumerationMember>().FirstOrDefault();
+
+			ExpiryDate.IsEnabled = member != null && (OrderWindowTif?)member.Value == OrderWindowTif.Gtd;
 			TryEnableSend();
 		}
 

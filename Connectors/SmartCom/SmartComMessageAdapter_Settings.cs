@@ -17,8 +17,8 @@ namespace StockSharp.SmartCom
 	using Xceed.Wpf.Toolkit.PropertyGrid.Attributes;
 
 	[DisplayName("SmartCOM")]
-	[CategoryLoc(LocalizedStrings.Str1769Key)]
-	[DescriptionLoc(LocalizedStrings.Str1857Key)]
+	[CategoryLoc(LocalizedStrings.RussiaKey)]
+	[DescriptionLoc(LocalizedStrings.Str1770Key, "IT Invest (SmartCOM)")]
 	[CategoryOrderLoc(LocalizedStrings.GeneralKey, 0)]
 	[CategoryOrderLoc(LocalizedStrings.Str174Key, 1)]
 	[CategoryOrderLoc(LocalizedStrings.Str186Key, 2)]
@@ -145,12 +145,12 @@ namespace StockSharp.SmartCom
 		}
 
 		/// <summary>
-		/// Получить строковое представление контейнера.
+		/// Получить строковое представление.
 		/// </summary>
 		/// <returns>Строковое представление.</returns>
 		public override string ToString()
 		{
-			return LocalizedStrings.Str1866Params.Put(Login, Address);
+			return LocalizedStrings.Str1866Params.Put(Login, Address.To<string>());
 		}
 	}
 }

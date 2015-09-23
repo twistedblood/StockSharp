@@ -166,7 +166,7 @@ namespace StockSharp.Transaq
 		}
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>
@@ -182,6 +182,11 @@ namespace StockSharp.Transaq
 		/// Событие появления новых свечек, полученных после подписки через <see cref="SubscribeCandles"/>.
 		/// </summary>
 		public event Action<CandleSeries, IEnumerable<Candle>> NewCandles;
+
+		/// <summary>
+		/// Событие окончания обработки серии.
+		/// </summary>
+		public event Action<CandleSeries> Stopped;
 
 		/// <summary>
 		/// Подписаться на получение свечек.
@@ -246,6 +251,9 @@ namespace StockSharp.Transaq
 
 			var candle = candleMsg.ToCandle(series);
 			NewCandles.SafeInvoke(series, new[] { candle });
+
+			if (candleMsg.IsFinished)
+				Stopped.SafeInvoke(series);
 		}
 
 		/// <summary>

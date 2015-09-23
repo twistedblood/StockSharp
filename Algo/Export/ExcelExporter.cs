@@ -51,7 +51,7 @@ namespace StockSharp.Algo.Export
 					{
 						worker
 							.SetCell(0, 0, LocalizedStrings.Id).SetStyle(0, typeof(string))
-							.SetCell(1, 0, LocalizedStrings.Str219).SetStyle(1, "yyyy-MM-dd HH:mm:ss.fff zzz")
+							.SetCell(1, 0, LocalizedStrings.Time).SetStyle(1, "yyyy-MM-dd HH:mm:ss.fff zzz")
 							.SetCell(2, 0, LocalizedStrings.Price).SetStyle(2, typeof(decimal))
 							.SetCell(3, 0, LocalizedStrings.Volume).SetStyle(3, typeof(decimal))
 							.SetCell(4, 0, LocalizedStrings.Str128)
@@ -86,7 +86,7 @@ namespace StockSharp.Algo.Export
 					{
 						worker
 							.SetCell(0, 0, LocalizedStrings.Id).SetStyle(0, typeof(string))
-							.SetCell(1, 0, LocalizedStrings.Str219).SetStyle(1, "yyyy-MM-dd HH:mm:ss.fff zzz")
+							.SetCell(1, 0, LocalizedStrings.Time).SetStyle(1, "yyyy-MM-dd HH:mm:ss.fff zzz")
 							.SetCell(2, 0, LocalizedStrings.Price).SetStyle(2, typeof(decimal))
 							.SetCell(3, 0, LocalizedStrings.Volume).SetStyle(3, typeof(decimal))
 							.SetCell(4, 0, LocalizedStrings.Str128)
@@ -133,7 +133,7 @@ namespace StockSharp.Algo.Export
 					Do(worker =>
 					{
 						worker
-							.SetCell(0, 0, LocalizedStrings.Str219).SetStyle(1, "yyyy-MM-dd HH:mm:ss.fff zzz")
+							.SetCell(0, 0, LocalizedStrings.Time).SetStyle(1, "yyyy-MM-dd HH:mm:ss.fff zzz")
 							.SetCell(1, 0, LocalizedStrings.Portfolio)
 							.SetCell(2, 0, LocalizedStrings.TransactionId)
 							.SetCell(3, 0, LocalizedStrings.OrderId)
@@ -191,7 +191,7 @@ namespace StockSharp.Algo.Export
 				foreach (var message in messages)
 				{
 					worker
-						.SetCell(0, rowIndex, LocalizedStrings.Str219)
+						.SetCell(0, rowIndex, LocalizedStrings.Time)
 						.SetCell(1, rowIndex, message.ServerTime);
 
 					var columnIndex = 0;
@@ -222,64 +222,39 @@ namespace StockSharp.Algo.Export
 		{
 			Do(worker =>
 			{
-				var columns = new Dictionary<Level1Fields, int>
-				{
-					{ Level1Fields.LastTradeId, 1 },
-					{ Level1Fields.LastTradePrice, 2 },
-					{ Level1Fields.LastTradeVolume, 3 },
-					{ Level1Fields.LastTradeOrigin, 4 },
-					{ Level1Fields.BestBidPrice, 5 },
-					{ Level1Fields.BestBidVolume, 6 },
-					{ Level1Fields.BestAskPrice, 7 },
-					{ Level1Fields.BestAskVolume, 8 },
-					{ Level1Fields.StepPrice, 9 },
-					{ Level1Fields.OpenInterest, 10 },
-					{ Level1Fields.TheorPrice, 11 },
-					{ Level1Fields.ImpliedVolatility, 12 },
-					{ Level1Fields.OpenPrice, 13 },
-					{ Level1Fields.HighPrice, 14 },
-					{ Level1Fields.LowPrice, 15 },
-					{ Level1Fields.ClosePrice, 16 },
-					{ Level1Fields.Volume, 17 },
-				};
+				var columns = new Dictionary<Level1Fields, int>();
+				//{
+				//	{ Level1Fields.LastTradeId, 1 },
+				//	{ Level1Fields.LastTradePrice, 2 },
+				//	{ Level1Fields.LastTradeVolume, 3 },
+				//	{ Level1Fields.LastTradeOrigin, 4 },
+				//	{ Level1Fields.BestBidPrice, 5 },
+				//	{ Level1Fields.BestBidVolume, 6 },
+				//	{ Level1Fields.BestAskPrice, 7 },
+				//	{ Level1Fields.BestAskVolume, 8 },
+				//	{ Level1Fields.StepPrice, 9 },
+				//	{ Level1Fields.OpenInterest, 10 },
+				//	{ Level1Fields.TheorPrice, 11 },
+				//	{ Level1Fields.ImpliedVolatility, 12 },
+				//	{ Level1Fields.OpenPrice, 13 },
+				//	{ Level1Fields.HighPrice, 14 },
+				//	{ Level1Fields.LowPrice, 15 },
+				//	{ Level1Fields.ClosePrice, 16 },
+				//	{ Level1Fields.Volume, 17 },
+				//};
 
 				worker
-					.SetCell(0, 0, LocalizedStrings.Str219).SetStyle(0, "yyyy-MM-dd HH:mm:ss.fff");
+					.SetCell(0, 0, LocalizedStrings.Time).SetStyle(0, "yyyy-MM-dd HH:mm:ss.fff");
 
-				foreach (var field in Enumerator.GetValues<Level1Fields>())
-				{
-					var columnIndex = columns.TryGetValue2(field);
+				//foreach (var pair in columns)
+				//{
+				//	var field = pair.Key;
+				//	var columnIndex = pair.Value;
 
-					if (columnIndex == null)
-					{
-						columnIndex = columns.Count;
-						columns.Add(field, columnIndex.Value);
-					}
+				//	worker.SetCell(columnIndex, 0, field.GetDisplayName());
 
-					var cell = worker.SetCell(columns[field], 0, field.GetDisplayName());
-
-					switch (field)
-					{
-						case Level1Fields.LastTrade:
-						case Level1Fields.BestAsk:
-						case Level1Fields.BestBid:
-							continue;
-						case Level1Fields.LastTradeId:
-						case Level1Fields.BidsCount:
-						case Level1Fields.AsksCount:
-						case Level1Fields.TradesCount:
-							cell.SetStyle(columns[field], typeof(long));
-							break;
-						case Level1Fields.LastTradeTime:
-						case Level1Fields.BestAskTime:
-						case Level1Fields.BestBidTime:
-							cell.SetStyle(columns[field], typeof(DateTimeOffset));
-							break;
-						default:
-							cell.SetStyle(columns[field], typeof(decimal));
-							break;
-					}
-				}
+				//	ApplyCellStyle(worker, field, columnIndex);
+				//}
 
 				var row = 1;
 
@@ -288,12 +263,52 @@ namespace StockSharp.Algo.Export
 					worker.SetCell(0, row, message.LocalTime);
 
 					foreach (var pair in message.Changes)
-						worker.SetCell(columns[pair.Key], row, pair.Value);
+					{
+						var field = pair.Key;
+
+						var columnIndex = columns.TryGetValue2(field);
+
+						if (columnIndex == null)
+						{
+							columnIndex = columns.Count;
+							columns.Add(field, columnIndex.Value);
+
+							worker.SetCell(columnIndex.Value, 0, field.GetDisplayName());
+							ApplyCellStyle(worker, field, columnIndex.Value);
+						}
+
+						worker.SetCell(columns[field], row, pair.Value);
+					}
 
 					if (!Check(++row))
 						break;
 				}
 			});
+		}
+
+		private static void ApplyCellStyle(ExcelWorker worker, Level1Fields field, int column)
+		{
+			switch (field)
+			{
+				case Level1Fields.LastTrade:
+				case Level1Fields.BestAsk:
+				case Level1Fields.BestBid:
+					break;
+				case Level1Fields.LastTradeId:
+				case Level1Fields.BidsCount:
+				case Level1Fields.AsksCount:
+				case Level1Fields.TradesCount:
+					worker.SetStyle(column, typeof(long));
+					break;
+				case Level1Fields.LastTradeTime:
+				case Level1Fields.BestAskTime:
+				case Level1Fields.BestBidTime:
+					worker.SetStyle(column, typeof(DateTimeOffset));
+					break;
+				default:
+					worker.SetStyle(column, typeof(decimal));
+					break;
+			}
 		}
 
 		/// <summary>
@@ -346,7 +361,7 @@ namespace StockSharp.Algo.Export
 			{
 				worker
 					.SetCell(0, 0, LocalizedStrings.Id).SetStyle(0, typeof(string))
-					.SetCell(1, 0, LocalizedStrings.Str219).SetStyle(1, "yyyy-MM-dd HH:mm:ss.fff")
+					.SetCell(1, 0, LocalizedStrings.Time).SetStyle(1, "yyyy-MM-dd HH:mm:ss.fff")
 					.SetCell(2, 0, LocalizedStrings.Security).SetStyle(2, typeof(string))
 					.SetCell(3, 0, LocalizedStrings.Board).SetStyle(3, typeof(string))
 					.SetCell(4, 0, LocalizedStrings.Str215).SetStyle(4, typeof(string))
@@ -392,16 +407,16 @@ namespace StockSharp.Algo.Export
 					.SetCell(colIndex, 0, LocalizedStrings.Name).SetStyle(colIndex++, typeof(string))
 					.SetCell(colIndex, 0, LocalizedStrings.Str363).SetStyle(colIndex++, typeof(string))
 					.SetCell(colIndex, 0, LocalizedStrings.PriceStep).SetStyle(colIndex++, typeof(decimal))
-					.SetCell(colIndex, 0, LocalizedStrings.Str365).SetStyle(colIndex++, typeof(decimal))
+					.SetCell(colIndex, 0, LocalizedStrings.VolumeStep).SetStyle(colIndex++, typeof(decimal))
 					.SetCell(colIndex, 0, LocalizedStrings.Str330).SetStyle(colIndex++, typeof(decimal))
 					.SetCell(colIndex, 0, LocalizedStrings.Type).SetStyle(colIndex++, typeof(string))
-					.SetCell(colIndex, 0, LocalizedStrings.Str547).SetStyle(colIndex++, typeof(decimal))
+					.SetCell(colIndex, 0, LocalizedStrings.Decimals).SetStyle(colIndex++, typeof(decimal))
 					.SetCell(colIndex, 0, LocalizedStrings.Str551).SetStyle(colIndex++, typeof(string))
 					.SetCell(colIndex, 0, LocalizedStrings.Strike).SetStyle(colIndex++, typeof(decimal))
 					.SetCell(colIndex, 0, LocalizedStrings.UnderlyingAsset).SetStyle(colIndex++, typeof(string))
 					.SetCell(colIndex, 0, LocalizedStrings.ExpiryDate).SetStyle(colIndex++, "yyyy-MM-dd")
 					.SetCell(colIndex, 0, LocalizedStrings.SettlementDate).SetStyle(colIndex++, "yyyy-MM-dd")
-					.SetCell(colIndex, 0, LocalizedStrings.Str250).SetStyle(colIndex++, typeof(string))
+					.SetCell(colIndex, 0, LocalizedStrings.Currency).SetStyle(colIndex++, typeof(string))
 
 					.SetCell(colIndex, 0, "Bloomberg").SetStyle(colIndex++, typeof(string))
 					.SetCell(colIndex, 0, "CUSIP").SetStyle(colIndex++, typeof(string))
@@ -460,7 +475,7 @@ namespace StockSharp.Algo.Export
 			using (var worker = new ExcelWorker())
 			{
 				action(worker);
-				worker.Save(Path);
+				worker.Save(Path, false);
 			}
 		}
 

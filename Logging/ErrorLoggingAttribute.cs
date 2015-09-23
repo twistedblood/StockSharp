@@ -1,16 +1,17 @@
-﻿namespace StockSharp.Logging
+namespace StockSharp.Logging
 {
 	using System;
 	using System.Collections.ObjectModel;
+	using System.Linq;
 	using System.ServiceModel;
 	using System.ServiceModel.Channels;
 	using System.ServiceModel.Description;
 	using System.ServiceModel.Dispatcher;
 
 	/// <summary>
-	/// Атрибут для WCF сервер, который автоматически записывает все ошибки в <see cref="LoggingHelper.LogError"/>.
+	/// The attribute for the WCF server that automatically records all errors to <see cref="LoggingHelper.LogError"/>.
 	/// </summary>
-	[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+	[AttributeUsage(AttributeTargets.Class)]
 	public class ErrorLoggingAttribute : Attribute, IServiceBehavior
 	{
 		private sealed class ErrorHandler : IErrorHandler
@@ -49,7 +50,7 @@
 
 		void IServiceBehavior.ApplyDispatchBehavior(ServiceDescription description, ServiceHostBase serviceHostBase)
 		{
-			foreach (ChannelDispatcher channelDispatcher in serviceHostBase.ChannelDispatchers)
+			foreach (var channelDispatcher in serviceHostBase.ChannelDispatchers.Cast<ChannelDispatcher>())
 				channelDispatcher.ErrorHandlers.Add(ErrorHandler.Instance);
 		}
 	}

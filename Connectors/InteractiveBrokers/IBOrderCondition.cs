@@ -17,7 +17,7 @@ namespace StockSharp.InteractiveBrokers
 	/// <summary>
 	/// Условие заявок, специфичных для <see cref="InteractiveBrokers"/>.
 	/// </summary>
-	[DisplayNameLoc(LocalizedStrings.Str2264Key, "FIX")]
+	[DisplayNameLoc(LocalizedStrings.Str2264Key, "Interactive Brokers")]
 	public class IBOrderCondition : OrderCondition
 	{
 		/// <summary>
@@ -50,7 +50,7 @@ namespace StockSharp.InteractiveBrokers
 			}
 
 			/// <summary>
-			/// Получить значение параметра. Если значение не существует, будет возвращено null.
+			/// Получить значение параметра. Если значение не существует, будет возвращено <see langword="null"/>.
 			/// </summary>
 			/// <typeparam name="T">Тип значения.</typeparam>
 			/// <param name="name">Название параметра.</param>
@@ -668,7 +668,7 @@ namespace StockSharp.InteractiveBrokers
 		public enum ShortSaleSlots
 		{
 			/// <summary>
-			/// Частрый трейдер или нет короткая нога.
+			/// Частный трейдер или нет короткая нога.
 			/// </summary>
 			[EnumDisplayNameLoc(LocalizedStrings.Str1658Key)]
 			Unapplicable,
@@ -1030,19 +1030,19 @@ namespace StockSharp.InteractiveBrokers
 			/// <summary>
 			/// Дельта.
 			/// </summary>
-			[EnumDisplayNameLoc(LocalizedStrings.Str300Key)]
+			[EnumDisplayNameLoc(LocalizedStrings.DeltaKey)]
 			Delta,
 
 			/// <summary>
 			/// Бета.
 			/// </summary>
-			[EnumDisplayNameLoc(LocalizedStrings.Str339Key)]
+			[EnumDisplayNameLoc(LocalizedStrings.BetaKey)]
 			Beta,
 
 			/// <summary>
 			/// Валюта.
 			/// </summary>
-			[EnumDisplayNameLoc(LocalizedStrings.Str250Key)]
+			[EnumDisplayNameLoc(LocalizedStrings.CurrencyKey)]
 			FX,
 
 			/// <summary>
@@ -1136,7 +1136,7 @@ namespace StockSharp.InteractiveBrokers
 			Away,
 
 			/// <summary>
-			/// После торговое размещение.
+			/// Послеторговое размещение.
 			/// </summary>
 			[EnumDisplayNameLoc(LocalizedStrings.Str2411Key)]
 			PostTradeAllocation
@@ -1735,12 +1735,49 @@ namespace StockSharp.InteractiveBrokers
 		/// <summary>
 		/// Дополнительные параметры.
 		/// </summary>
+		[CategoryLoc(LocalizedStrings.Str225Key)]
 		[DisplayNameLoc(LocalizedStrings.Str225Key)]
 		[DescriptionLoc(LocalizedStrings.Str2492Key)]
 		public IEnumerable<Tuple<string, string>> MiscOptions
 		{
 			get { return (IEnumerable<Tuple<string, string>>)Parameters.TryGetValue("MiscOptions") ?? Enumerable.Empty<Tuple<string, string>>(); }
 			set { Parameters["MiscOptions"] = value; }
+		}
+
+		/// <summary>
+		/// Запрошенная.
+		/// </summary>
+		[CategoryLoc(LocalizedStrings.Str225Key)]
+		[DisplayNameLoc(LocalizedStrings.SolicitedKey)]
+		[DescriptionLoc(LocalizedStrings.SolicitedKey, true)]
+		public bool Solicited
+		{
+			get { return (bool)Parameters["Solicited"]; }
+			set { Parameters["Solicited"] = value; }
+		}
+
+		/// <summary>
+		/// Произвольный размер.
+		/// </summary>
+		[CategoryLoc(LocalizedStrings.Str225Key)]
+		[DisplayNameLoc(LocalizedStrings.RandomizeSizeKey)]
+		[DescriptionLoc(LocalizedStrings.RandomizeSizeKey, true)]
+		public bool RandomizeSize
+		{
+			get { return (bool)Parameters["RandomizeSize"]; }
+			set { Parameters["RandomizeSize"] = value; }
+		}
+
+		/// <summary>
+		/// Произвольная цена.
+		/// </summary>
+		[CategoryLoc(LocalizedStrings.Str225Key)]
+		[DisplayNameLoc(LocalizedStrings.RandomizePriceKey)]
+		[DescriptionLoc(LocalizedStrings.RandomizePriceKey, true)]
+		public bool RandomizePrice
+		{
+			get { return (bool)Parameters["RandomizePrice"]; }
+			set { Parameters["RandomizePrice"] = value; }
 		}
 
 		/// <summary>

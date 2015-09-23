@@ -164,29 +164,29 @@ namespace StockSharp.Algo.Testing
 			}
 		}
 
-		private TimeSpan? _useCandlesTimeFrame;
+		//private TimeSpan? _useCandlesTimeFrame;
 
-		/// <summary>
-		/// Использовать свечи с заданным тайм-фреймом. Если тайм-фрейм равен <see langword="null"/>, свечи не используются.
-		/// </summary>
-		[CategoryLoc(LocalizedStrings.Str1174Key)]
-		[PropertyOrder(10)]
-		[DisplayNameLoc(LocalizedStrings.CandlesKey)]
-		[DescriptionLoc(LocalizedStrings.Str1188Key)]
-		[Nullable]
-		[DefaultValue(typeof(TimeSpan), "00:05:00")]
-		public TimeSpan? UseCandlesTimeFrame
-		{
-			get { return _useCandlesTimeFrame; }
-			set
-			{
-				if (value <= TimeSpan.Zero)
-					throw new ArgumentOutOfRangeException("value", value, LocalizedStrings.Str1189);
+		///// <summary>
+		///// Использовать свечи с заданным тайм-фреймом. Если тайм-фрейм равен <see langword="null"/>, свечи не используются.
+		///// </summary>
+		//[CategoryLoc(LocalizedStrings.Str1174Key)]
+		//[PropertyOrder(10)]
+		//[DisplayNameLoc(LocalizedStrings.CandlesKey)]
+		//[DescriptionLoc(LocalizedStrings.Str1188Key)]
+		//[Nullable]
+		//[DefaultValue(typeof(TimeSpan), "00:05:00")]
+		//public TimeSpan? UseCandlesTimeFrame
+		//{
+		//	get { return _useCandlesTimeFrame; }
+		//	set
+		//	{
+		//		if (value <= TimeSpan.Zero)
+		//			throw new ArgumentOutOfRangeException("value", value, LocalizedStrings.Str1189);
 
-				_useCandlesTimeFrame = value;
-				NotifyChanged("UseCandlesTimeFrame");
-			}
-		}
+		//		_useCandlesTimeFrame = value;
+		//		NotifyChanged("UseCandlesTimeFrame");
+		//	}
+		//}
 
 		private long _initialOrderId;
 
@@ -355,6 +355,25 @@ namespace StockSharp.Algo.Testing
 			}
 		}
 
+		private TimeZoneInfo _timeZone;
+
+		/// <summary>
+		/// Информация о временной зоне, где находится биржа.
+		/// </summary>
+		[CategoryLoc(LocalizedStrings.Str1175Key)]
+		[PropertyOrder(140)]
+		[DisplayNameLoc(LocalizedStrings.TimeZoneKey)]
+		[DescriptionLoc(LocalizedStrings.Str68Key)]
+		public TimeZoneInfo TimeZone
+		{
+			get { return _timeZone; }
+			set
+			{
+				_timeZone = value;
+				NotifyChanged("TimeZone");
+			}
+		}
+
 		private Unit _priceLimitOffset = new Unit(40, UnitTypes.Percent);
 
 		/// <summary>
@@ -362,7 +381,7 @@ namespace StockSharp.Algo.Testing
 		/// Используется только, если нет сохраненной информации <see cref="Level1ChangeMessage"/>. По-умолчанию равен 40%.
 		/// </summary>
 		[CategoryLoc(LocalizedStrings.Str1175Key)]
-		[PropertyOrder(140)]
+		[PropertyOrder(150)]
 		[DisplayNameLoc(LocalizedStrings.Str1205Key)]
 		[DescriptionLoc(LocalizedStrings.Str1206Key)]
 		public Unit PriceLimitOffset
@@ -408,7 +427,7 @@ namespace StockSharp.Algo.Testing
 			storage.SetValue("Latency", Latency);
 			storage.SetValue("IsSupportAtomicReRegister", IsSupportAtomicReRegister);
 			storage.SetValue("BufferTime", BufferTime);
-			storage.SetValue("UseCandlesTimeFrame", UseCandlesTimeFrame);
+			//storage.SetValue("UseCandlesTimeFrame", UseCandlesTimeFrame);
 			storage.SetValue("InitialOrderId", InitialOrderId);
 			storage.SetValue("InitialTradeId", InitialTradeId);
 			storage.SetValue("InitialTransactionId", InitialTransactionId);
@@ -419,6 +438,9 @@ namespace StockSharp.Algo.Testing
 			storage.SetValue("ConvertTime", ConvertTime);
 			storage.SetValue("PriceLimitOffset", PriceLimitOffset);
 			storage.SetValue("IncreaseDepthVolume", IncreaseDepthVolume);
+
+			if (TimeZone != null)
+				storage.SetValue("TimeZone", TimeZone.ToSerializedString());
 		}
 
 		/// <summary>
@@ -433,7 +455,7 @@ namespace StockSharp.Algo.Testing
 			Latency = storage.GetValue("Latency", Latency);
 			IsSupportAtomicReRegister = storage.GetValue("IsSupportAtomicReRegister", IsSupportAtomicReRegister);
 			BufferTime = storage.GetValue("BufferTime", BufferTime);
-			UseCandlesTimeFrame = storage.GetValue("UseCandlesTimeFrame", UseCandlesTimeFrame);
+			//UseCandlesTimeFrame = storage.GetValue("UseCandlesTimeFrame", UseCandlesTimeFrame);
 			InitialOrderId = storage.GetValue("InitialOrderId", InitialOrderId);
 			InitialTradeId = storage.GetValue("InitialTradeId", InitialTradeId);
 			InitialTransactionId = storage.GetValue("InitialTransactionId", InitialTransactionId);
@@ -444,6 +466,9 @@ namespace StockSharp.Algo.Testing
 			ConvertTime = storage.GetValue("ConvertTime", ConvertTime);
 			PriceLimitOffset = storage.GetValue("PriceLimitOffset", PriceLimitOffset);
 			IncreaseDepthVolume = storage.GetValue("IncreaseDepthVolume", IncreaseDepthVolume);
+
+			if (storage.Contains("TimeZone"))
+				TimeZone = TimeZoneInfo.FromSerializedString(storage.GetValue<string>("TimeZone"));
 		}
 	}
 }

@@ -34,15 +34,17 @@
 		public static readonly Version Version52 = new Version(5, 2);
 		public static readonly Version Version53 = new Version(5, 3);
 		public static readonly Version Version54 = new Version(5, 4);
+		public static readonly Version Version55 = new Version(5, 5);
+		public static readonly Version Version56 = new Version(5, 6);
 	}
 
-	abstract class BinaryMetaInfo<TMetaInfo> : MetaInfo<TMetaInfo>
+	abstract class BinaryMetaInfo<TMetaInfo> : MetaInfo
 		where TMetaInfo : BinaryMetaInfo<TMetaInfo>
 	{
 		protected BinaryMetaInfo(DateTime date)
 			: base(date)
 		{
-			LocalOffset = TimeHelper.TimeZoneOffset;
+			LocalOffset = DateTimeOffset.Now.Offset;
 
 			FirstLocalTime = date;
 			LastLocalTime = date;
@@ -64,6 +66,17 @@
 
 		public DateTime FirstLocalTime { get; set; }
 		public DateTime LastLocalTime { get; set; }
+
+		public TimeSpan FirstLocalOffset { get; set; }
+		public TimeSpan LastLocalOffset { get; set; }
+
+		public TimeSpan FirstServerOffset { get; set; }
+		public TimeSpan LastServerOffset { get; set; }
+
+		public override object LastId
+		{
+			get { return LastTime; }
+		}
 
 		public bool IsEmpty()
 		{
@@ -174,14 +187,32 @@
 			LastLocalTime = stream.Read<DateTime>();
 		}
 
-		public override TMetaInfo Clone()
+		protected void WriteOffsets(Stream stream)
 		{
-			var copy = typeof(TMetaInfo).CreateInstance<TMetaInfo>(Date);
-			copy.CopyFrom((TMetaInfo)this);
-			return copy;
+			stream.Write(FirstLocalOffset);
+			stream.Write(LastLocalOffset);
+
+			stream.Write(FirstServerOffset);
+			stream.Write(LastServerOffset);
 		}
 
-		protected virtual void CopyFrom(TMetaInfo src)
+		protected void ReadOffsets(Stream stream)
+		{
+			FirstLocalOffset = stream.Read<TimeSpan>();
+			LastLocalOffset = stream.Read<TimeSpan>();
+
+			FirstServerOffset = stream.Read<TimeSpan>();
+			LastServerOffset = stream.Read<TimeSpan>();
+		}
+
+		//public override TMetaInfo Clone()
+		//{
+		//	var copy = typeof(TMetaInfo).CreateInstance<TMetaInfo>(Date);
+		//	copy.CopyFrom((TMetaInfo)this);
+		//	return copy;
+		//}
+
+		public virtual void CopyFrom(TMetaInfo src)
 		{
 			Version = src.Version;
 			Count = src.Count;
@@ -198,6 +229,10 @@
 			LastFractionalVolume = src.LastFractionalVolume;
 			FirstLocalTime = src.FirstLocalTime;
 			LastLocalTime = src.LastLocalTime;
+			FirstLocalOffset = src.FirstLocalOffset;
+			LastLocalOffset = src.LastLocalOffset;
+			FirstServerOffset = src.FirstServerOffset;
+			LastServerOffset = src.LastServerOffset;
 		}
 	}
 
@@ -244,7 +279,8 @@
 			{
 				if (Index < 0) // enumerator стоит перед первой записью
 				{
-					MetaInfo = _originalMetaInfo.Clone();
+					MetaInfo = (TMetaInfo)((IMarketDataSerializer)Serializer).CreateMetaInfo(_originalMetaInfo.Date);
+					MetaInfo.CopyFrom(_originalMetaInfo);
 					Index = 0;
 				}
 
@@ -301,14 +337,14 @@
 
 		IMarketDataMetaInfo IMarketDataSerializer.CreateMetaInfo(DateTime date)
 		{
-			var info = MetaInfo<TMetaInfo>.CreateMetaInfo(date);
+			var info = typeof(TMetaInfo).CreateInstance<TMetaInfo>(date);
 			info.Version = Version;
 			return info;
 		}
 
-		byte[] IMarketDataSerializer.Serialize(IEnumerable data, IMarketDataMetaInfo metaInfo)
+		void IMarketDataSerializer.Serialize(Stream stream, IEnumerable data, IMarketDataMetaInfo metaInfo)
 		{
-			return Serialize(data.Cast<TData>(), metaInfo);
+			Serialize(stream, data.Cast<TData>(), metaInfo);
 		}
 
 		IEnumerableEx IMarketDataSerializer.Deserialize(Stream stream, IMarketDataMetaInfo metaInfo)
@@ -316,14 +352,14 @@
 			return Deserialize(stream, metaInfo);
 		}
 
-		public byte[] Serialize(IEnumerable<TData> data, IMarketDataMetaInfo metaInfo)
+		public void Serialize(Stream stream, IEnumerable<TData> data, IMarketDataMetaInfo metaInfo)
 		{
-			var stream = new MemoryStream { Capacity = DataSize * data.Count() * 2 };
+			//var temp = new MemoryStream { Capacity = DataSize * data.Count() * 2 };
 
 			using (var writer = new BitArrayWriter(stream))
 				OnSave(writer, data, (TMetaInfo)metaInfo);
 
-			return stream.To<byte[]>();
+			//return stream.To<byte[]>();
 		}
 
 		public IEnumerableEx<TData> Deserialize(Stream stream, IMarketDataMetaInfo metaInfo)

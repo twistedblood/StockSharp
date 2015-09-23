@@ -127,6 +127,7 @@ namespace StockSharp.Algo.Candles
 
 				_source = source;
 				_source.NewCandles += OnNewCandles;
+				_source.Stopped += OnStopped;
 			}
 
 			public int SpeedPriority
@@ -135,12 +136,7 @@ namespace StockSharp.Algo.Candles
 			}
 
 			public event Action<CandleSeries, Candle> Processing;
-
-			event Action<CandleSeries> ICandleSource<Candle>.Stopped
-			{
-				add { }
-				remove { }
-			}
+			public event Action<CandleSeries> Stopped;
 
 			event Action<Exception> ICandleSource<Candle>.Error
 			{
@@ -165,9 +161,11 @@ namespace StockSharp.Algo.Candles
 
 			private void OnNewCandles(CandleSeries series, IEnumerable<Candle> candles)
 			{
-				foreach (var candle in candles)
+				foreach (var c in candles)
 				{
-					candle.State = CandleStates.Started;
+					var candle = c.Clone();
+
+					candle.State = CandleStates.Active;
 					Processing.SafeInvoke(series, candle);
 
 					candle.State = CandleStates.Finished;
@@ -175,13 +173,20 @@ namespace StockSharp.Algo.Candles
 				}
 			}
 
+			private void OnStopped(CandleSeries series)
+			{
+				Stopped.SafeInvoke(series);
+			}
+
 			/// <summary>
-			/// Освободить ресурсы.
+			/// Освободить занятые ресурсы.
 			/// </summary>
 			protected override void DisposeManaged()
 			{
-				base.DisposeManaged();
 				_source.NewCandles -= OnNewCandles;
+				_source.Stopped -= OnStopped;
+
+				base.DisposeManaged();
 			}
 
 			ICandleManager ICandleManagerSource.CandleManager { get; set; }
@@ -308,7 +313,7 @@ namespace StockSharp.Algo.Candles
 		public event Action<Exception> Error;
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>
@@ -340,7 +345,11 @@ namespace StockSharp.Algo.Candles
 
 				enumerator = new CandleSourceEnumerator<ICandleManagerSource, Candle>(series, from, to,
 					series.Security is IndexSecurity ? (IEnumerable<ICandleManagerSource>)new[] { new IndexSecurityCandleManagerSource(this, from, to) } : Sources,
-					c => Processing.SafeInvoke(series, c),
+					c =>
+					{
+						Processing.SafeInvoke(series, c);
+						return c.OpenTime;
+					},
 					() =>
 					{
 						//Stop(series);

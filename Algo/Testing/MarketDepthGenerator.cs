@@ -40,7 +40,7 @@ namespace StockSharp.Algo.Testing
 		/// Использовать для генерации лучших котировок в стакане объем исторических сделок.
 		/// </summary>
 		/// <remarks>
-		/// Значение по умолчанию true.
+		/// Значение по умолчанию <see langword="true"/>.
 		/// </remarks>
 		public bool UseTradeVolume { get; set; } // TODO
 
@@ -127,7 +127,7 @@ namespace StockSharp.Algo.Testing
 		}
 
 		/// <summary>
-		/// Генерировать ли стаканы после каждой сделки. По умолчанию false.
+		/// Генерировать ли стаканы после каждой сделки. По умолчанию <see langword="false"/>.
 		/// </summary>
 		public bool GenerateDepthOnEachTrade { get; set; }
 
@@ -330,7 +330,7 @@ namespace StockSharp.Algo.Testing
 			if (_currGenerations == 0 || _bestBidPrice == null || _bestAskPrice == null)
 				return null;
 
-			var isTradeTime = _boardDefinition.WorkingTime.IsTradeTime(message.LocalTime);
+			var isTradeTime = _boardDefinition.IsTradeTime(time);
 
 			var canProcess = GenerateDepthOnEachTrade && _newTrades
 				? isTradeTime
@@ -437,7 +437,7 @@ namespace StockSharp.Algo.Testing
 		//}
 		
 		/// <summary>
-		/// Создать копию генератора.
+		/// Создать копию <see cref="TrendMarketDepthGenerator"/>.
 		/// </summary>
 		/// <returns>Копия.</returns>
 		public override MarketDataGenerator Clone()

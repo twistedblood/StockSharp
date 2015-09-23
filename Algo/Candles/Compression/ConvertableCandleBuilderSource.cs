@@ -111,8 +111,8 @@ namespace StockSharp.Algo.Candles.Compression
 	public class RawConvertableCandleBuilderSource<TSourceValue> : ConvertableCandleBuilderSource<TSourceValue>
 	{
 		private readonly Security _security;
-		private readonly DateTime _from;
-		private readonly DateTime _to;
+		private readonly DateTimeOffset _from;
+		private readonly DateTimeOffset _to;
 
 		/// <summary>
 		/// Создать <see cref="RawConvertableCandleBuilderSource{TSourceValue}"/>.
@@ -121,7 +121,7 @@ namespace StockSharp.Algo.Candles.Compression
 		/// <param name="from">Время первого значения.</param>
 		/// <param name="to">Время последнего значения.</param>
 		/// <param name="values">Готовая коллеция данные.</param>
-		public RawConvertableCandleBuilderSource(Security security, DateTime from, DateTime to, IEnumerable<TSourceValue> values)
+		public RawConvertableCandleBuilderSource(Security security, DateTimeOffset from, DateTimeOffset to, IEnumerable<TSourceValue> values)
 		{
 			if (security == null)
 				throw new ArgumentNullException("security");
@@ -150,7 +150,7 @@ namespace StockSharp.Algo.Candles.Compression
 		public IEnumerable<TSourceValue> Values { get; private set; }
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>

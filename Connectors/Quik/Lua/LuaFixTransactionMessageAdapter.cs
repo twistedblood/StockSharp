@@ -1,7 +1,6 @@
 ﻿namespace StockSharp.Quik.Lua
 {
 	using System;
-	using System.Linq;
 
 	using Ecng.Common;
 
@@ -27,14 +26,14 @@
 		/// <summary>
 		/// Создать для заявки типа <see cref="OrderTypes.Conditional"/> условие, которое поддерживается подключением.
 		/// </summary>
-		/// <returns>Условие для заявки. Если подключение не поддерживает заявки типа <see cref="OrderTypes.Conditional"/>, то будет возвращено null.</returns>
+		/// <returns>Условие для заявки. Если подключение не поддерживает заявки типа <see cref="OrderTypes.Conditional"/>, то будет возвращено <see langword="null"/>.</returns>
 		public override OrderCondition CreateOrderCondition()
 		{
 			return new QuikOrderCondition();
 		}
 
 		/// <summary>
-		/// Финальная инициализация условие заявки.
+		/// Финальная инициализация условия заявки.
 		/// </summary>
 		/// <param name="ordType">Тип заявки.</param>
 		/// <param name="condition">Условие заявки.</param>
@@ -49,7 +48,7 @@
 		/// <param name="regMsg">Сообщение, содержащее информацию для регистрации заявки.</param>
 		protected override void WriteOrderCondition(IFixWriter writer, OrderRegisterMessage regMsg)
 		{
-			writer.WriteOrderCondition((QuikOrderCondition)regMsg.Condition);
+			writer.WriteOrderCondition((QuikOrderCondition)regMsg.Condition, DateTimeFormat);
 		}
 
 		/// <summary>
@@ -61,7 +60,7 @@
 		/// <returns>Успешно ли обработаны данные.</returns>
 		protected override bool ReadOrderCondition(IFixReader reader, FixTags tag, Func<OrderCondition> getCondition)
 		{
-			return reader.ReadOrderCondition(tag, UtcOffset, () => (QuikOrderCondition)getCondition());
+			return reader.ReadOrderCondition(tag, TimeZone, DateTimeFormat, () => (QuikOrderCondition)getCondition());
 		}
 	}
 }

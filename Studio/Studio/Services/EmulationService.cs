@@ -74,9 +74,9 @@ namespace StockSharp.Studio.Services
 			}
 		}
 
-		private DateTime _marketTime;
+		private DateTimeOffset _marketTime;
 
-		public DateTime MarketTime
+		public DateTimeOffset MarketTime
 		{
 			get { return _marketTime; }
 			set
@@ -285,7 +285,7 @@ namespace StockSharp.Studio.Services
 					return;
 				}
 
-				MarketTime = Exchange.Test.ToExchangeTime(EmulationConnector.CurrentTime);
+				MarketTime = EmulationConnector.CurrentTime;
 				ErrorCount = EmulationConnector.ErrorCount;
 
 				_emulDuration += timeElapsed;
@@ -339,7 +339,7 @@ namespace StockSharp.Studio.Services
 
 			strategyInfoList.Add(_infoClone);
 			
-			EmulationConnector.StorageRegistry = new StudioStorageRegistry { MarketDataSettings = Strategy.MarketDataSettings };
+			EmulationConnector.HistoryMessageAdapter.StorageRegistry = new StudioStorageRegistry { MarketDataSettings = Strategy.MarketDataSettings };
 		}
 
 		private CandleManager CreateCandleManager()

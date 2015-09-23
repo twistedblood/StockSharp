@@ -1,7 +1,6 @@
 namespace StockSharp.Algo.Statistics
 {
 	using System;
-	using System.ComponentModel;
 
 	using Ecng.Serialization;
 
@@ -25,7 +24,7 @@ namespace StockSharp.Algo.Statistics
 	/// </summary>
 	[DisplayNameLoc(LocalizedStrings.Str958Key)]
 	[DescriptionLoc(LocalizedStrings.Str959Key)]
-	[Category("P&L")]
+	[CategoryLoc(LocalizedStrings.PnLKey)]
 	public class MaxProfitParameter : BaseStatisticParameter<decimal>, IPnLStatisticParameter
 	{
 		/// <summary>
@@ -44,7 +43,7 @@ namespace StockSharp.Algo.Statistics
 	/// </summary>
 	[DisplayNameLoc(LocalizedStrings.Str960Key)]
 	[DescriptionLoc(LocalizedStrings.Str961Key)]
-	[Category("P&L")]
+	[CategoryLoc(LocalizedStrings.PnLKey)]
 	public class MaxDrawdownParameter : BaseStatisticParameter<decimal>, IPnLStatisticParameter
 	{
 		private decimal _maxEquity = decimal.MinValue;
@@ -86,7 +85,7 @@ namespace StockSharp.Algo.Statistics
 	/// </summary>
 	[DisplayNameLoc(LocalizedStrings.Str962Key)]
 	[DescriptionLoc(LocalizedStrings.Str963Key)]
-	[Category("P&L")]
+	[CategoryLoc(LocalizedStrings.PnLKey)]
 	public class MaxRelativeDrawdownParameter : BaseStatisticParameter<decimal>, IPnLStatisticParameter
 	{
 		private decimal _maxEquity = decimal.MinValue;
@@ -130,7 +129,7 @@ namespace StockSharp.Algo.Statistics
 	/// </summary>
 	[DisplayNameLoc(LocalizedStrings.Str964Key)]
 	[DescriptionLoc(LocalizedStrings.Str965Key)]
-	[Category("P&L")]
+	[CategoryLoc(LocalizedStrings.PnLKey)]
 	public class ReturnParameter : BaseStatisticParameter<decimal>, IPnLStatisticParameter
 	{
 		private decimal _minEquity = decimal.MaxValue;
@@ -174,13 +173,11 @@ namespace StockSharp.Algo.Statistics
 	/// </summary>
 	[DisplayNameLoc(LocalizedStrings.Str966Key)]
 	[DescriptionLoc(LocalizedStrings.Str967Key)]
-	[Category("P&L")]
+	[CategoryLoc(LocalizedStrings.PnLKey)]
 	public class RecoveryFactorParameter : BaseStatisticParameter<decimal>, IPnLStatisticParameter
 	{
-		private decimal _maxEquity = decimal.MinValue;
-		private decimal _maxDrawdown = decimal.MinValue;
-
-		private decimal? _firstPnL;
+		private readonly MaxDrawdownParameter _maxDrawdown = new MaxDrawdownParameter();
+		private readonly NetProfitParameter _netProfit = new NetProfitParameter();
 
 		/// <summary>
 		/// Добавить в параметр новые данные.
@@ -189,14 +186,10 @@ namespace StockSharp.Algo.Statistics
 		/// <param name="pnl">Значение прибыли убытка.</param>
 		public void Add(DateTimeOffset marketTime, decimal pnl)
 		{
-			if (_firstPnL == null)
-				_firstPnL = pnl;
+			_maxDrawdown.Add(marketTime, pnl);
+			_netProfit.Add(marketTime, pnl);
 
-			_maxEquity = Math.Max(_maxEquity, pnl);
-			_maxDrawdown = Math.Max(Value, _maxEquity - pnl);
-
-			var firstData = _firstPnL.Value;
-			Value = _maxDrawdown != 0 ? (pnl - firstData) / _maxDrawdown : 0;
+			Value = _maxDrawdown.Value != 0 ? _netProfit.Value / _maxDrawdown.Value : 0;
 		}
 
 		/// <summary>
@@ -205,9 +198,8 @@ namespace StockSharp.Algo.Statistics
 		/// <param name="storage">Хранилище.</param>
 		public override void Save(SettingsStorage storage)
 		{
-			storage.SetValue("MaxEquity", _maxEquity);
-			storage.SetValue("MaxDrawdown", _maxDrawdown);
-			storage.SetValue("FirstPnL", _firstPnL);
+			storage.SetValue("MaxDrawdown", _maxDrawdown.Save());
+			storage.SetValue("NetProfit", _netProfit.Save());
 
 			base.Save(storage);
 		}
@@ -218,9 +210,8 @@ namespace StockSharp.Algo.Statistics
 		/// <param name="storage">Хранилище.</param>
 		public override void Load(SettingsStorage storage)
 		{
-			_maxEquity = storage.GetValue<decimal>("MaxEquity");
-			_maxDrawdown = storage.GetValue<decimal>("MaxDrawdown");
-			_firstPnL = storage.GetValue<decimal?>("FirstPnL");
+			_maxDrawdown.Load(storage.GetValue<SettingsStorage>("MaxDrawdown"));
+			_netProfit.Load(storage.GetValue<SettingsStorage>("NetProfit"));
 
 			base.Load(storage);
 		}
@@ -231,7 +222,7 @@ namespace StockSharp.Algo.Statistics
 	/// </summary>
 	[DisplayNameLoc(LocalizedStrings.Str968Key)]
 	[DescriptionLoc(LocalizedStrings.Str969Key)]
-	[Category("P&L")]
+	[CategoryLoc(LocalizedStrings.PnLKey)]
 	public class NetProfitParameter : BaseStatisticParameter<decimal>, IPnLStatisticParameter
 	{
 		private decimal? _firstPnL;
@@ -246,8 +237,7 @@ namespace StockSharp.Algo.Statistics
 			if (_firstPnL == null)
 				_firstPnL = pnl;
 
-			var firstData = _firstPnL.Value;
-			Value = pnl - firstData;
+			Value = pnl - _firstPnL.Value;
 		}
 
 		/// <summary>

@@ -64,7 +64,7 @@ namespace StockSharp.SmartCom
 				}
 				case MarketDataTypes.Trades:
 				{
-					if (mdMsg.From.IsDefault())
+					if (mdMsg.From == null)
 					{
 						if (mdMsg.IsSubscribe)
 							_wrapper.SubscribeTrades(smartId);
@@ -75,14 +75,14 @@ namespace StockSharp.SmartCom
 					{
 						const int maxTradeCount = 1000000;
 						this.AddDebugLog("RequestHistoryTrades SecId = {0} From {1} Count = {2}", smartId, mdMsg.From, maxTradeCount);
-						_wrapper.RequestHistoryTrades(smartId, mdMsg.From.ToLocalTime(TimeHelper.Moscow), maxTradeCount);
+						_wrapper.RequestHistoryTrades(smartId, mdMsg.From.Value.ToLocalTime(TimeHelper.Moscow), maxTradeCount);
 					}
 
 					break;
 				}
 				case MarketDataTypes.CandleTimeFrame:
 				{
-					var count = mdMsg.Count;
+					var count = mdMsg.Count ?? 0;
 					var direction = (SmartComHistoryDirections)mdMsg.ExtensionInfo["Direction"];
 
 					if (direction == SmartComHistoryDirections.Forward)
@@ -93,7 +93,7 @@ namespace StockSharp.SmartCom
 					_candleTransactions.SafeAdd(smartId)[tf] = Tuple.Create(mdMsg.TransactionId, new List<CandleMessage>());
 
 					this.AddDebugLog("RequestHistoryBars SecId {0} TF {1} From {2} Count {3}", smartId, tf, mdMsg.From, count);
-					_wrapper.RequestHistoryBars(smartId, tf, mdMsg.From.ToLocalTime(TimeHelper.Moscow), (int)count);
+					_wrapper.RequestHistoryBars(smartId, tf, (mdMsg.From ?? DateTimeOffset.MinValue).ToLocalTime(TimeHelper.Moscow), (int)count);
 
 					break;
 				}
@@ -120,7 +120,7 @@ namespace StockSharp.SmartCom
 				SendOutError(LocalizedStrings.Str1854);
 		}
 
-		private static ExecutionMessage CreateTrade(string smartId, DateTime time, decimal price, decimal volume, long tradeId, SmartOrderAction action)
+		private static ExecutionMessage CreateTrade(string smartId, DateTime time, decimal? price, decimal? volume, long tradeId, SmartOrderAction action)
 		{
 			return new ExecutionMessage
 			{
@@ -134,7 +134,7 @@ namespace StockSharp.SmartCom
 			};
 		}
 
-		private void OnNewHistoryTrade(int row, int rowCount, string smartId, DateTime time, decimal price, decimal volume, long tradeId, SmartOrderAction action)
+		private void OnNewHistoryTrade(int row, int rowCount, string smartId, DateTime time, decimal? price, decimal? volume, long tradeId, SmartOrderAction action)
 		{
 			this.AddDebugLog("OnNewHistoryTrade row = {0} rowCount = {1} securityId = {2} time = {3} price = {4} volume = {5} id = {6} action = {7}",
 				row, rowCount, smartId, time, price, volume, tradeId, action);
@@ -144,7 +144,7 @@ namespace StockSharp.SmartCom
 			SendOutMessage(msg);
 		}
 
-		private void OnNewBar(int row, int rowCount, string smartId, SmartComTimeFrames timeFrame, DateTime time, decimal open, decimal high, decimal low, decimal close, decimal volume, decimal openInt)
+		private void OnNewBar(int row, int rowCount, string smartId, SmartComTimeFrames timeFrame, DateTime time, decimal? open, decimal? high, decimal? low, decimal? close, decimal? volume, decimal? openInt)
 		{
 			this.AddDebugLog("OnNewHistoryTrade row = {0} rowCount = {1} securityId = {2} timeFrame = {3} time = {4} open = {5} high = {6} low = {7} close = {8} volume = {9} openInt = {10}",
 				row, rowCount, smartId, timeFrame, time, open, high, low, close, volume, openInt);
@@ -162,22 +162,31 @@ namespace StockSharp.SmartCom
 			transactionInfo.Item2.Add(new TimeFrameCandleMessage
 			{
 				SecurityId = new SecurityId { Native = smartId },
-				OpenPrice = open,
-				HighPrice = high,
-				LowPrice = low,
-				ClosePrice = close,
-				TotalVolume = volume,
+				OpenPrice = open ?? 0,
+				HighPrice = high ?? 0,
+				LowPrice = low ?? 0,
+				ClosePrice = close ?? 0,
+				TotalVolume = volume ?? 0,
 				OpenTime = time.ApplyTimeZone(TimeHelper.Moscow) - (TimeSpan)timeFrame,
 				CloseTime = time.ApplyTimeZone(TimeHelper.Moscow),
 				OpenInterest = openInt,
 				OriginalTransactionId = transactionInfo.Item1,
-				IsFinished = row == (rowCount - 1),
 			});
 
 			if ((row + 1) < rowCount)
 				return;
 
-			transactionInfo.Item2.OrderBy(c => c.OpenTime).ForEach(SendOutMessage);
+			row = 0;
+
+			transactionInfo.Item2.OrderBy(c => c.OpenTime).ForEach(m =>
+			{
+				m.IsFinished = ++row == rowCount;
+
+				if (!m.IsFinished)
+					m.State = CandleStates.Finished;
+
+				SendOutMessage(m);
+			});
 
 			infos.Remove(timeFrameKey);
 
@@ -185,13 +194,13 @@ namespace StockSharp.SmartCom
 				_candleTransactions.Remove(smartId);
 		}
 
-		private void OnNewTrade(string smartId, DateTime time, decimal price, decimal volume, long tradeId, SmartOrderAction action)
+		private void OnNewTrade(string smartId, DateTime time, decimal? price, decimal? volume, long tradeId, SmartOrderAction action)
 		{
 			SendOutMessage(CreateTrade(smartId, time, price, volume, tradeId, action));
 		}
 
 		private void OnNewSecurity(int row, int rowCount, string smartId, string name, string secCode, string secClass, int decimals, int lotSize,
-			decimal stepPrice, decimal priceStep, string isin, string board, DateTime? expiryDate, decimal daysBeforeExpiry, decimal strike)
+			decimal? stepPrice, decimal? priceStep, string isin, string board, DateTime? expiryDate, decimal? daysBeforeExpiry, decimal? strike)
 		{
 			//AMU: заглушка. 11.01.2013 обнаружил, что через SmartCom стали приходить инструменты (класс EQBR и FISS) с пустым secCode - "longName" в понятии АйтиИнвеста
 			if (secCode.IsEmpty())
@@ -256,14 +265,14 @@ namespace StockSharp.SmartCom
 
 			if (secMsg.SecurityType == SecurityTypes.Option)
 			{
-				var optionInfo = secMsg.Name.GetOptionInfo();
+				var optionInfo = secMsg.Name.GetOptionInfo(ExchangeBoard.Forts);
 
 				if (optionInfo != null)
 				{
 					// http://stocksharp.com/forum/yaf_postst1355_Exception-Change-Set-11052.aspx
 					if (!secCode.IsEmpty())
 					{
-						var futureInfo = optionInfo.UnderlyingSecurityId.GetFutureInfo(secCode);
+						var futureInfo = optionInfo.UnderlyingSecurityId.GetFutureInfo(secCode, ExchangeBoard.Forts);
 						if (futureInfo != null)
 							secMsg.UnderlyingSecurityCode = futureInfo.SecurityId.SecurityCode;
 					}
@@ -276,7 +285,7 @@ namespace StockSharp.SmartCom
 
 			SendOutMessage(secMsg);
 
-			if (stepPrice > 0)
+			if (stepPrice != null)
 			{
 				SendOutMessage(
 					new Level1ChangeMessage
@@ -284,7 +293,7 @@ namespace StockSharp.SmartCom
 						SecurityId = securityId,
 						ServerTime = CurrentTime.Convert(TimeHelper.Moscow),
 					}
-					.Add(Level1Fields.StepPrice, stepPrice));
+					.TryAdd(Level1Fields.StepPrice, stepPrice.Value));
 			}
 
 			if ((row + 1) < rowCount)
@@ -294,8 +303,8 @@ namespace StockSharp.SmartCom
 			_lookupSecuritiesId = 0;
 		}
 
-		private void OnSecurityChanged(string smartId, Tuple<decimal, decimal, DateTime> lastTrade, decimal open, decimal high, decimal low, decimal close, decimal volume, QuoteChange bid, QuoteChange ask,
-			decimal openInt, Tuple<decimal, decimal> goBuySell, Tuple<decimal, decimal> goBase, Tuple<decimal, decimal> limits, int tradingStatus, Tuple<decimal, decimal> volatTheorPrice)
+		private void OnSecurityChanged(string smartId, Tuple<decimal?, decimal?, DateTime> lastTrade, decimal? open, decimal? high, decimal? low, decimal? close, decimal? volume, QuoteChange bid, QuoteChange ask,
+			decimal? openInt, Tuple<decimal?, decimal?> goBuySell, Tuple<decimal?, decimal?> goBase, Tuple<decimal?, decimal?> limits, int tradingStatus, Tuple<decimal?, decimal?> volatTheorPrice)
 		{
 			var secId = new SecurityId { Native = smartId };
 
@@ -357,7 +366,7 @@ namespace StockSharp.SmartCom
 			SendOutMessage(message);
 		}
 
-		private void OnQuoteChanged(string smartId, int row, int rowCount, decimal bidPrice, decimal bidVolume, decimal askPrice, decimal askVolume)
+		private void OnQuoteChanged(string smartId, int row, int rowCount, decimal? bidPrice, decimal? bidVolume, decimal? askPrice, decimal? askVolume)
 		{
 			//Debug.Write("Row = " + row + " Bid = " + bidPrice + " BidVolume = " + bidVolume + " Ask = " + askPrice + " AskVolume = " + askVolume);
 			var secId = new SecurityId { Native = smartId };
@@ -368,20 +377,20 @@ namespace StockSharp.SmartCom
 
 			try
 			{
-				if (bidPrice != 0)
+				if (bidPrice > 0)
 				{
-					tempDepth.Item1.Add(new QuoteChange(Sides.Buy, bidPrice, bidVolume));
+					tempDepth.Item1.Add(new QuoteChange(Sides.Buy, bidPrice.Value, bidVolume ?? 0));
 
 					if (row == 0)
-						bestQuotes.First = Tuple.Create(bidPrice, bidVolume);
+						bestQuotes.First = Tuple.Create(bidPrice.Value, bidVolume ?? 0);
 				}
 
-				if (askPrice != 0)
+				if (askPrice > 0)
 				{
-					tempDepth.Item2.Add(new QuoteChange(Sides.Sell, askPrice, askVolume));
+					tempDepth.Item2.Add(new QuoteChange(Sides.Sell, askPrice.Value, askVolume ?? 0));
 
 					if (row == 0)
-						bestQuotes.Second = Tuple.Create(askPrice, askVolume);
+						bestQuotes.Second = Tuple.Create(askPrice.Value, askVolume ?? 0);
 				}
 			}
 			finally

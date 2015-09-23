@@ -46,6 +46,8 @@ namespace SampleSterling
 			Instance = this;
 			InitializeComponent();
 
+			Title = Title.Put("Sterling");
+
 			Closing += OnClosing;
 
 			_ordersWindow.MakeHideable();
@@ -100,6 +102,7 @@ namespace SampleSterling
 					{
 						this.GuiAsync(() => OnConnectionChanged(true));
 						AddSecurities();
+                        Trader.RegisterNews();
 					};
 
 					// subscribe on connection error event
@@ -119,7 +122,7 @@ namespace SampleSterling
 					Trader.MarketDataSubscriptionFailed += (security, type, error) =>
 						this.GuiAsync(() => MessageBox.Show(this, error.ToString(), LocalizedStrings.Str2956Params.Put(type, security)));
 
-					Trader.NewSecurities += securities => _securitiesWindow.SecurityPicker.Securities.AddRange(securities);
+                    Trader.NewSecurities += securities => _securitiesWindow.SecurityPicker.Securities.AddRange(securities);
 					Trader.NewMyTrades += trades => _myTradesWindow.TradeGrid.Trades.AddRange(trades);
 					Trader.NewOrders += orders => _ordersWindow.OrderGrid.Orders.AddRange(orders);
 					Trader.NewStopOrders += orders => this.GuiAsync(() => _stopOrdersWindow.OrderGrid.Orders.AddRange(orders));
@@ -130,6 +133,7 @@ namespace SampleSterling
 
 						_portfoliosWindow.PortfolioGrid.Portfolios.AddRange(portfolios);
 					};
+
 					Trader.NewPositions += positions => _portfoliosWindow.PortfolioGrid.Positions.AddRange(positions);
 
 					// subscribe on error of order registration event
@@ -142,7 +146,7 @@ namespace SampleSterling
 					// subscribe on error of stop-order cancelling event
 					Trader.StopOrdersCancelFailed += OrdersFailed;
 
-					Trader.NewNews += news => _newsWindow.NewsPanel.NewsGrid.News.Add(news);
+					Trader.NewNews += news =>  _newsWindow.NewsPanel.NewsGrid.News.Add(news);
 
 					// set market data provider
 					_securitiesWindow.SecurityPicker.MarketDataProvider = Trader;

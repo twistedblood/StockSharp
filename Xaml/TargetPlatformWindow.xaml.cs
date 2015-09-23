@@ -25,7 +25,7 @@ namespace StockSharp.Xaml
 	}
 
 	/// <summary>
-	/// Компонент для выбора платформы для приложения.
+	/// The component to select a platform for the application.
 	/// </summary>
 	public partial class TargetPlatformWindow
 	{
@@ -54,12 +54,12 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// <see cref="DependencyProperty"/> для <see cref="AppName"/>.
+		/// <see cref="DependencyProperty"/> for <see cref="TargetPlatformWindow.AppName"/>.
 		/// </summary>
 		public static readonly DependencyProperty AppNameProperty = DependencyProperty.Register("AppName", typeof(string), typeof(TargetPlatformWindow), new PropertyMetadata(TypeHelper.ApplicationName));
 
 		/// <summary>
-		/// Название приложения.
+		/// The application name.
 		/// </summary>
 		public string AppName
 		{
@@ -68,12 +68,12 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// <see cref="DependencyProperty"/> для <see cref="AppIcon"/>.
+		/// <see cref="DependencyProperty"/> for <see cref="TargetPlatformWindow.AppIcon"/>.
 		/// </summary>
 		public static readonly DependencyProperty AppIconProperty = DependencyProperty.Register("AppIcon", typeof(string), typeof(TargetPlatformWindow));
 
 		/// <summary>
-		/// Иконка приложения.
+		/// The application icon.
 		/// </summary>
 		public string AppIcon
 		{
@@ -82,12 +82,12 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// <see cref="DependencyProperty"/> для <see cref="AutoStart"/>.
+		/// <see cref="DependencyProperty"/> for <see cref="TargetPlatformWindow.AutoStart"/>.
 		/// </summary>
 		public static readonly DependencyProperty AutoStartProperty = DependencyProperty.Register("AutoStart", typeof(bool), typeof(TargetPlatformWindow));
 
 		/// <summary>
-		/// Автозапуск выбранной конфигурации.
+		/// Autostart of the selected configuration.
 		/// </summary>
 		public bool AutoStart
 		{
@@ -99,7 +99,7 @@ namespace StockSharp.Xaml
 		private readonly ListCollectionView _featuresView;
 
 		/// <summary>
-		/// Доступная функциональность для всех платформ.
+		/// Available functionality for all platforms.
 		/// </summary>
 		public ObservableCollection<TargetPlatformFeature> Features
 		{
@@ -107,28 +107,30 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// Выбранная платформа.
+		/// The selected platform.
 		/// </summary>
 		public Platforms SelectedPlatform { get; private set; }
 
+		private Languages _selectedLanguage;
+
 		/// <summary>
-		/// Выбранная культура.
+		/// The selected culture.
 		/// </summary>
 		public Languages SelectedLanguage
 		{
-			get { return LocalizedStrings.ActiveLanguage; }
+			get { return _selectedLanguage; }
 			private set
 			{
-				LocalizedStrings.ActiveLanguage = value;
+				_selectedLanguage = value;
 
-				HintLabel.Text = LocalizedStrings.XamlStr178;
-				AutoCheckBox.Content = LocalizedStrings.XamlStr176;
-				SelectPlatformLabel.Text = LocalizedStrings.SelectAppMode;
+				HintLabel.Text = LocalizedStrings.GetString(LocalizedStrings.XamlStr178Key, value);
+				AutoCheckBox.Content = LocalizedStrings.GetString(LocalizedStrings.XamlStr176Key, value);
+				SelectPlatformLabel.Text = LocalizedStrings.GetString(LocalizedStrings.SelectAppModeKey, value);
 			}
 		}
 
 		/// <summary>
-		/// Создать <see cref="TargetPlatformWindow"/>.
+		/// Initializes a new instance of the <see cref="TargetPlatformWindow"/>.
 		/// </summary>
 		public TargetPlatformWindow()
 		{
@@ -152,9 +154,11 @@ namespace StockSharp.Xaml
 				new TargetPlatformFeature("Blackwood/Fusion"),
 				new TargetPlatformFeature("LMAX"),
 				new TargetPlatformFeature("IQFeed"),
+				new TargetPlatformFeature("BarChart"),
 				new TargetPlatformFeature("OANDA"),
 				new TargetPlatformFeature("Rithmic"),
 				new TargetPlatformFeature("FIX/FAST"),
+				new TargetPlatformFeature("ITCH"),
 				new TargetPlatformFeature("BTCE"),
 				new TargetPlatformFeature("BitStamp"),
 				new TargetPlatformFeature("RSS")
@@ -187,27 +191,11 @@ namespace StockSharp.Xaml
 			if (configFile.IsEmptyOrWhiteSpace() || !File.Exists(configFile))
 				return;
 
-			AppStartSettings settings;
-
-			if (File.ReadAllText(configFile).ContainsIgnoreCase("RefPair"))
-			{
-				var pair = new XmlSerializer<RefPair<Platforms, bool>>().Deserialize(configFile);
-
-				settings = new AppStartSettings
-				{
-					Platform = pair.First,
-					AutoStart = pair.Second,
-					Language = Languages.Russian
-				};
-			}
-			else
-			{
-				settings = new XmlSerializer<AppStartSettings>().Deserialize(configFile);
-			}
+			var settings = new XmlSerializer<AppStartSettings>().Deserialize(configFile);
 
 			SelectedPlatform = PlatformCheckBox.IsEnabled ? settings.Platform : Platforms.x86;
 			AutoStart = settings.AutoStart;
-			SelectedLanguage = settings.Language;
+			LocalizedStrings.ActiveLanguage = SelectedLanguage = settings.Language;
 
 			UpdateLangButtons();
 			UpdatePlatformCheckBox();
@@ -268,6 +256,8 @@ namespace StockSharp.Xaml
 		{
 			//if (!AutoStart)
 			//	SelectedPlatform = Platforms.x64;
+
+			LocalizedStrings.ActiveLanguage = SelectedLanguage;
 
 			Save();
 

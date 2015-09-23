@@ -1,6 +1,7 @@
 namespace StockSharp.BitStamp.Native
 {
 	using System;
+	using System.Linq;
 	using System.Net.WebSockets;
 	using System.Text;
 	using System.Threading;
@@ -61,6 +62,9 @@ namespace StockSharp.BitStamp.Native
 			{
 				var buf = new byte[1024 * 1024];
 				var pos = 0;
+
+				var errorCount = 0;
+				const int maxErrorCount = 10;
 
 				while (!IsDisposed && _connected)
 				{
@@ -129,6 +133,23 @@ namespace StockSharp.BitStamp.Native
 								this.AddErrorLog(LocalizedStrings.Str3312Params, obj.Event);
 								break;
 						}
+
+						errorCount = 0;
+					}
+					catch (AggregateException ex)
+					{
+						PusherError.SafeInvoke(ex);
+
+						var socketError = ex.InnerExceptions.FirstOrDefault() as WebSocketException;
+
+						if (socketError != null)
+							break;
+
+						if (++errorCount >= maxErrorCount)
+						{
+							this.AddErrorLog("Max error {0} limit reached.", maxErrorCount);
+							break;
+						}
 					}
 					catch (Exception ex)
 					{
@@ -174,7 +195,7 @@ namespace StockSharp.BitStamp.Native
 		}
 
 		/// <summary>
-		/// Освободить занятые ресурсы.
+		/// Release resources.
 		/// </summary>
 		protected override void DisposeManaged()
 		{

@@ -21,6 +21,9 @@ namespace StockSharp.LMAX
 	using StockSharp.Messages;
 	using StockSharp.Localization;
 
+	/// <summary>
+	/// The messages adapter for LMAX.
+	/// </summary>
 	partial class LmaxMessageAdapter
 	{
 		private static readonly string[] _indexCodes =
@@ -39,7 +42,7 @@ namespace StockSharp.LMAX
 		private bool _isHistoricalSubscribed;
 
 		/// <summary>
-		/// Поддерживается ли торговой системой поиск инструментов.
+		/// Gets a value indicating whether the connector supports security lookup.
 		/// </summary>
 		protected override bool IsSupportNativeSecurityLookup
 		{
@@ -101,7 +104,7 @@ namespace StockSharp.LMAX
 							PriceStep = cells[4].To<decimal>(),
 							//security.MinStepPrice = cells[5].To<decimal>(),
 							Currency = cells[8].To<CurrencyTypes>(),
-							ExpiryDate = cells[7].IsEmpty() ? (DateTime?)null : cells[7].ToDateTime("dd/MM/yyyy HH:mm"),
+							ExpiryDate = cells[7].IsEmpty() ? (DateTimeOffset?)null : cells[7].ToDateTime("dd/MM/yyyy HH:mm").ApplyTimeZone(TimeZoneInfo.Utc),
 							OriginalTransactionId = lookupMsg.TransactionId
 						});
 					}
@@ -156,7 +159,7 @@ namespace StockSharp.LMAX
 					VolumeStep = instrument.OrderBook.QuantityIncrement,
 					Multiplier = instrument.Contract.ContractSize,
 					Currency = instrument.Contract.Currency.To<CurrencyTypes>(),
-					ExpiryDate = instrument.Calendar.ExpiryTime,
+					ExpiryDate = instrument.Calendar.ExpiryTime == null ? (DateTimeOffset?)null : instrument.Calendar.ExpiryTime.Value.ApplyTimeZone(TimeZoneInfo.Utc),
 					SecurityType = type,
 					OriginalTransactionId = transactionId,
 				});
@@ -189,6 +192,7 @@ namespace StockSharp.LMAX
 			switch (mdMsg.DataType)
 			{
 				case MarketDataTypes.Level1:
+				case MarketDataTypes.Trades:
 				{
 					_session.Subscribe(new OrderBookStatusSubscriptionRequest(lmaxId), () => { }, CreateErrorHandler("OrderBookStatusSubscriptionRequest"));
 					break;
@@ -203,9 +207,11 @@ namespace StockSharp.LMAX
 					IHistoricMarketDataRequest request;
 
 					var tf = (TimeSpan)mdMsg.Arg;
+					var from = (mdMsg.From ?? DateTimeOffset.MinValue).UtcDateTime;
+					var to = (mdMsg.To ?? DateTimeOffset.MaxValue).UtcDateTime;
 
 					if (tf.Ticks == 1)
-						request = new TopOfBookHistoricMarketDataRequest(mdMsg.TransactionId, lmaxId, mdMsg.From.UtcDateTime, mdMsg.To.UtcDateTime, Format.Csv);
+						request = new TopOfBookHistoricMarketDataRequest(mdMsg.TransactionId, lmaxId, from, to, Format.Csv);
 					else
 					{
 						Resolution resolution;
@@ -217,7 +223,7 @@ namespace StockSharp.LMAX
 						else
 							throw new InvalidOperationException(LocalizedStrings.Str3393Params.Put(tf));
 
-						request = new AggregateHistoricMarketDataRequest(mdMsg.TransactionId, lmaxId, mdMsg.From.UtcDateTime, mdMsg.To.UtcDateTime, resolution, Format.Csv, Option.Bid, Option.Ask);
+						request = new AggregateHistoricMarketDataRequest(mdMsg.TransactionId, lmaxId, from, to, resolution, Format.Csv, Option.Bid, Option.Ask);
 					}
 
 					if (!_isHistoricalSubscribed)
@@ -229,8 +235,6 @@ namespace StockSharp.LMAX
 					_session.RequestHistoricMarketData(request, () => { }, CreateErrorHandler("RequestHistoricMarketData"));
 					break;
 				}
-				case MarketDataTypes.Trades:
-					break;
 				default:
 				{
 					SendOutMarketDataNotSupported(mdMsg.TransactionId);
@@ -335,7 +339,7 @@ namespace StockSharp.LMAX
 									var message = new TimeFrameCandleMessage
 									{
 										OriginalTransactionId = transactionId.Value,
-										OpenTime = TimeHelper.GregorianStart.AddMilliseconds(cells[0].To<long>()),
+										OpenTime = TimeHelper.GregorianStart.AddMilliseconds(cells[0].To<long>()).ApplyTimeZone(TimeZoneInfo.Utc),
 										IsFinished = index++ == (rows.Length - 2),
 										State = CandleStates.Finished,
 									};

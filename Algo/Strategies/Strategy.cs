@@ -486,7 +486,7 @@ namespace StockSharp.Algo.Strategies
 		/// </summary>
 		[CategoryLoc(LocalizedStrings.Str436Key)]
 		[PropertyOrder(5)]
-		[DisplayName("P&L")]
+		[DisplayNameLoc(LocalizedStrings.PnLKey)]
 		[DescriptionLoc(LocalizedStrings.Str1364Key)]
 		[ReadOnly(true)]
 		public decimal PnL
@@ -1002,8 +1002,8 @@ namespace StockSharp.Algo.Strategies
 		/// (состояние <see cref="ProcessState"/> стало равным <see cref="ProcessStates.Stopped"/>)
 		/// и удалять ее из родительской через <see cref="ChildStrategies"/>.
 		/// </summary>
-		/// <remarks>Режим используется только для одноразовых стратегий, тоесть для тех, что не будут запущены повторно (например, котирование).</remarks>
-		/// <remarks>По умолчанию выключено.</remarks>
+		/// <remarks>Режим используется только для одноразовых стратегий, тоесть для тех, что не будут запущены повторно (например, котирование).
+		/// По умолчанию выключено.</remarks>
 		[Browsable(false)]
 		public bool DisposeOnStop
 		{
@@ -1596,7 +1596,7 @@ namespace StockSharp.Algo.Strategies
 		{
 			get
 			{
-				return Connector == null ? TimeHelper.Now : Connector.CurrentTime;
+				return Connector == null ? TimeHelper.NowWithOffset : Connector.CurrentTime;
 			}
 		}
 
@@ -2073,7 +2073,7 @@ namespace StockSharp.Algo.Strategies
 				if (date != _prevTradeDate)
 				{
 					_prevTradeDate = date;
-					_isPrevDateTradable = board.WorkingTime.IsTradeDate(_prevTradeDate.Date);
+					_isPrevDateTradable = board.IsTradeDate(_prevTradeDate);
 				}
 
 				if (!_isPrevDateTradable)
@@ -2508,9 +2508,9 @@ namespace StockSharp.Algo.Strategies
 		}
 
 		/// <summary>
-		/// Создать копию стратегии со всеми настройками.
+		/// Создать копию <see cref="Strategy"/>.
 		/// </summary>
-		/// <returns>Копия стратегии.</returns>
+		/// <returns>Копия.</returns>
 		public virtual Strategy Clone()
 		{
 			var clone = GetType().CreateInstance<Strategy>();

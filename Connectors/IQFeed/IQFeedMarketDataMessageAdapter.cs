@@ -6,6 +6,7 @@ namespace StockSharp.IQFeed
 	using System.IO.Compression;
 	using System.Linq;
 	using System.Net;
+	using System.Text;
 	using System.Text.RegularExpressions;
 
 	using Ecng.Collections;
@@ -23,7 +24,7 @@ namespace StockSharp.IQFeed
 	using StockSharp.Localization;
 
 	/// <summary>
-	/// Маркет-дата адаптер сообщений для IQFeed.
+	/// The messages adapter for IQFeed.
 	/// </summary>
 	public partial class IQFeedMarketDataMessageAdapter : MessageAdapter
 	{
@@ -50,12 +51,12 @@ namespace StockSharp.IQFeed
 		private MessageTypes? _currSystemType;
 		private bool _isDownloadSecurityFromSite;
 
-		private readonly SynchronizedDictionary<long, string> _newsIds = new SynchronizedDictionary<long, string>();
+		private readonly SynchronizedDictionary<long, Tuple<string, StringBuilder>> _newsIds = new SynchronizedDictionary<long, Tuple<string, StringBuilder>>();
 
 		/// <summary>
-		/// Создать <see cref="IQFeedMarketDataMessageAdapter"/>.
+		/// Initializes a new instance of the <see cref="IQFeedMarketDataMessageAdapter"/>.
 		/// </summary>
-		/// <param name="transactionIdGenerator">Генератор идентификаторов транзакций.</param>
+		/// <param name="transactionIdGenerator">Transaction id generator.</param>
 		public IQFeedMarketDataMessageAdapter(IdGenerator transactionIdGenerator)
 			: base(transactionIdGenerator)
 		{
@@ -94,7 +95,7 @@ namespace StockSharp.IQFeed
 		}
 
 		/// <summary>
-		/// Поддерживается ли торговой системой поиск инструментов.
+		/// Gets a value indicating whether the connector supports security lookup.
 		/// </summary>
 		protected override bool IsSupportNativeSecurityLookup
 		{
@@ -102,7 +103,7 @@ namespace StockSharp.IQFeed
 		}
 
 		/// <summary>
-		/// Требуется ли дополнительное сообщение <see cref="SecurityLookupMessage"/> для получения списка инструментов.
+		/// <see cref="SecurityLookupMessage"/> required to get securities.
 		/// </summary>
 		public override bool SecurityLookupRequired
 		{
@@ -150,9 +151,9 @@ namespace StockSharp.IQFeed
 		}
 
 		/// <summary>
-		/// Отправить сообщение.
+		/// Send message.
 		/// </summary>
-		/// <param name="message">Сообщение.</param>
+		/// <param name="message">Message.</param>
 		protected override void OnSendInMessage(Message message)
 		{
 			switch (message.Type)
@@ -226,14 +227,12 @@ namespace StockSharp.IQFeed
 				{
 					var mdMsg = (MarketDataMessage)message;
 
-					var from = mdMsg.From.ToLocalTime(TimeHelper.Est);
-					var to = mdMsg.To.ToLocalTime(TimeHelper.Est);
-
 					switch (mdMsg.DataType)
 					{
 						case MarketDataTypes.Level1:
+						case MarketDataTypes.Trades:
 						{
-							if (mdMsg.To == DateTimeOffset.MaxValue)
+							if (mdMsg.To == null)
 							{
 								if (mdMsg.IsSubscribe)
 									_level1Feed.SubscribeSymbol(mdMsg.SecurityId.SecurityCode);
@@ -247,10 +246,10 @@ namespace StockSharp.IQFeed
 									_requestsType.Add(mdMsg.TransactionId, MessageTypes.Execution);
 									_secIds.Add(mdMsg.TransactionId, mdMsg.SecurityId);
 
-									if (mdMsg.Count != 0)
-										_lookupFeed.RequestTicks(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, mdMsg.Count);
+									if (mdMsg.Count != null)
+										_lookupFeed.RequestTicks(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, mdMsg.Count.Value);
 									else
-										_lookupFeed.RequestTicks(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, from, to);
+										_lookupFeed.RequestTicks(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, mdMsg.From.ToEst(), mdMsg.To.ToEst());
 								}
 							}
 
@@ -296,13 +295,13 @@ namespace StockSharp.IQFeed
 									else
 									{
 										_requestsType.Add(mdMsg.TransactionId, MessageTypes.News);
-										_lookupFeed.RequestNewsHeadlines(mdMsg.TransactionId, from);
+										_lookupFeed.RequestNewsHeadlines(mdMsg.TransactionId, mdMsg.From.ToEst());
 									}
 								}
 								else
 								{
 									var newsId = mdMsg.NewsId;
-									_newsIds.Add(mdMsg.TransactionId, newsId);
+									_newsIds.Add(mdMsg.TransactionId, Tuple.Create(newsId, new StringBuilder()));
 									_requestsType.Add(mdMsg.TransactionId, ExtendedMessageTypes.NewsStory);
 									_lookupFeed.RequestNewsStory(mdMsg.TransactionId, newsId);
 								}
@@ -322,7 +321,7 @@ namespace StockSharp.IQFeed
 							if (mdMsg.IsSubscribe)
 							{
 								// streaming
-								if (from == DateTimeOffset.MaxValue && mdMsg.Count == 0)
+								if (mdMsg.To == null && mdMsg.Count == null)
 								{
 									string strArg, intervalType;
 									GetCandleParams(mdMsg.DataType, mdMsg.Arg, out strArg, out intervalType);
@@ -331,7 +330,7 @@ namespace StockSharp.IQFeed
 									_secIds.Add(mdMsg.TransactionId, mdMsg.SecurityId);
 									_candleParsers.Add(mdMsg.TransactionId, Tuple.Create(_candleStreamingParser, mdMsg.Arg));
 
-									_derivativeFeed.SubscribeCandles(mdMsg.SecurityId.SecurityCode, intervalType, strArg, from, mdMsg.TransactionId);
+									_derivativeFeed.SubscribeCandles(mdMsg.SecurityId.SecurityCode, intervalType, strArg, mdMsg.From.ToEst(), mdMsg.TransactionId);
 									break;
 								}
 
@@ -345,10 +344,7 @@ namespace StockSharp.IQFeed
 										_secIds.Add(mdMsg.TransactionId, mdMsg.SecurityId);
 										_candleParsers.Add(mdMsg.TransactionId, Tuple.Create(_candleParser, mdMsg.Arg));
 
-										var count = mdMsg.Count;
-
-										if (count == 0)
-											count = ExchangeBoard.Associated.GetTimeFrameCount(new Range<DateTimeOffset>(mdMsg.From, mdMsg.To), tf);
+										var count = mdMsg.Count ?? ExchangeBoard.Associated.GetTimeFrameCount(new Range<DateTimeOffset>(mdMsg.From ?? DateTimeOffset.MinValue, mdMsg.To ?? DateTimeOffset.MaxValue), tf);
 
 										_lookupFeed.RequestMonthlyCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, count);
 									}
@@ -358,10 +354,7 @@ namespace StockSharp.IQFeed
 										_secIds.Add(mdMsg.TransactionId, mdMsg.SecurityId);
 										_candleParsers.Add(mdMsg.TransactionId, Tuple.Create(_candleParser, mdMsg.Arg));
 
-										var count = mdMsg.Count;
-
-										if (count == 0)
-											count = ExchangeBoard.Associated.GetTimeFrameCount(new Range<DateTimeOffset>(mdMsg.From, mdMsg.To), tf);
+										var count = mdMsg.Count ?? ExchangeBoard.Associated.GetTimeFrameCount(new Range<DateTimeOffset>(mdMsg.From ?? DateTimeOffset.MinValue, mdMsg.To ?? DateTimeOffset.MaxValue), tf);
 
 										_lookupFeed.RequestWeeklyCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, count);
 									}
@@ -371,10 +364,10 @@ namespace StockSharp.IQFeed
 										_secIds.Add(mdMsg.TransactionId, mdMsg.SecurityId);
 										_candleParsers.Add(mdMsg.TransactionId, Tuple.Create(_candleParser, mdMsg.Arg));
 
-										if (mdMsg.Count != 0)
-											_lookupFeed.RequestDailyCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, mdMsg.Count);
+										if (mdMsg.Count != null)
+											_lookupFeed.RequestDailyCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, mdMsg.Count.Value);
 										else
-											_lookupFeed.RequestDailyCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, from, to);
+											_lookupFeed.RequestDailyCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, mdMsg.From.ToEst(), mdMsg.To.ToEst());
 									}
 									else if (tf < TimeSpan.FromDays(1))
 									{
@@ -387,10 +380,10 @@ namespace StockSharp.IQFeed
 
 										//var interval = tf.TotalSeconds.To<int>();
 
-										if (mdMsg.Count != 0)
-											_lookupFeed.RequestCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, intervalType, strArg, mdMsg.Count);
+										if (mdMsg.Count != null)
+											_lookupFeed.RequestCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, intervalType, strArg, mdMsg.Count.Value);
 										else
-											_lookupFeed.RequestCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, intervalType, strArg, from, to);
+											_lookupFeed.RequestCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, intervalType, strArg, mdMsg.From.ToEst(), mdMsg.To.ToEst());
 									}
 									else
 									{
@@ -402,10 +395,10 @@ namespace StockSharp.IQFeed
 									string strArg, intervalType;
 									GetCandleParams(mdMsg.DataType, mdMsg.Arg, out strArg, out intervalType);
 
-									if (mdMsg.Count != 0)
-										_lookupFeed.RequestCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, intervalType, strArg, mdMsg.Count);
+									if (mdMsg.Count != null)
+										_lookupFeed.RequestCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, intervalType, strArg, mdMsg.Count.Value);
 									else
-										_lookupFeed.RequestCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, intervalType, strArg, from, to);
+										_lookupFeed.RequestCandles(mdMsg.TransactionId, mdMsg.SecurityId.SecurityCode, intervalType, strArg, mdMsg.From.ToEst(), mdMsg.To.ToEst());
 								}
 							}
 							else
@@ -465,10 +458,7 @@ namespace StockSharp.IQFeed
 											// below line has incorrect tabulation
 											// CS.17.CB	CREDIT SUISSE NEW YORK 1.375% 05/26/17		NYSE	NYSE	BONDS			
 
-											var list = parts.ToList();
-											list.RemoveAt(2);
-
-											parts = list.ToArray();
+											parts = parts.Exclude(2, 1).ToArray();
 										}
 
 										var secType = parts[4].ToSecurityType();
@@ -786,7 +776,7 @@ namespace StockSharp.IQFeed
 
 			if (feed == _lookupFeed && _currSystemType != null)
 				type = _currSystemType.Value;
-			else if (!_requestsType.TryGetValue(requestId, out type))
+			else
 			{
 				match = _regex.Match(line);
 
@@ -819,11 +809,13 @@ namespace StockSharp.IQFeed
 							type = MessageTypes.News;
 							break;
 						default:
-							type = ExtendedMessageTypes.Data;
+							if (!_requestsType.TryGetValue(requestId, out type))
+								type = ExtendedMessageTypes.Data;
+
 							break;
 					}
 				}
-				else
+				else if (!_requestsType.TryGetValue(requestId, out type))
 					type = ExtendedMessageTypes.Data;
 			}
 
@@ -915,12 +907,27 @@ namespace StockSharp.IQFeed
 
 				case ExtendedMessageTypes.NewsStory:
 				{
-					yield return new NewsMessage
+					var tuple = _newsIds[requestId];
+
+					if (str.IsEmpty())
 					{
-						Id = _newsIds[requestId],
-						Story = str.StripBrackets("<BEGIN>", "<END>"),
-						ServerTime = CurrentTime.Convert(TimeHelper.Est)
-					};
+						tuple.Item2.AppendLine();
+						break;
+					}
+
+					tuple.Item2.Append(str.Replace("<BEGIN>", string.Empty).Replace("<END>", string.Empty));
+
+					if (str.EndsWith("<END>"))
+					{
+						_newsIds.Remove(requestId);
+
+						yield return new NewsMessage
+						{
+							Id = tuple.Item1,
+							Story = tuple.Item2.ToString(),
+							ServerTime = CurrentTime.Convert(TimeHelper.Est)
+						};
+					}
 
 					break;
 				}
@@ -951,7 +958,7 @@ namespace StockSharp.IQFeed
 						else// if (tf == TimeSpan.FromDays(7) || tf.Ticks == TimeHelper.TicksPerMonth)
 						{
 							candleMsg.CloseTime -= TimeSpan.FromTicks(1);
-							candleMsg.OpenTime = tf.GetCandleBounds(candleMsg.CloseTime.ToLocalTime(TimeHelper.Est)).Min;
+							candleMsg.OpenTime = tf.GetCandleBounds(candleMsg.CloseTime).Min;
 						}
 					}
 					else

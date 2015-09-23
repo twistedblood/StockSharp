@@ -21,7 +21,7 @@ namespace StockSharp.Algo.Strategies
 	using StockSharp.Logging;
 
 	/// <summary>
-	/// Вспомогательный класс для работы с классом <see cref="Strategy"/>.
+	/// Вспомогательный класс для работы с <see cref="Strategy"/>.
 	/// </summary>
 	public static class StrategyHelper
 	{
@@ -188,7 +188,7 @@ namespace StockSharp.Algo.Strategies
 		/// Получить режим запуска стратегии (эмуляция или реал).
 		/// </summary>
 		/// <param name="strategy">Стратегия.</param>
-		/// <returns>Если используется режим эмуляции - true, иначе - false.</returns>
+		/// <returns>Если используется режим эмуляции - <see langword="true"/>, иначе - <see langword="false"/>.</returns>
 		public static bool GetIsEmulation(this Strategy strategy)
 		{
 			return strategy.Environment.GetValue("IsEmulationMode", false);
@@ -198,7 +198,7 @@ namespace StockSharp.Algo.Strategies
 		/// Установить режим запуска стратегии (эмуляция или реал).
 		/// </summary>
 		/// <param name="strategy">Стратегия.</param>
-		/// <param name="isEmulation">Если используется режим эмуляции - true, иначе - false.</param>
+		/// <param name="isEmulation">Если используется режим эмуляции - <see langword="true"/>, иначе - <see langword="false"/>.</param>
 		public static void SetIsEmulation(this Strategy strategy, bool isEmulation)
 		{
 			strategy.Environment.SetValue("IsEmulationMode", isEmulation);
@@ -208,7 +208,7 @@ namespace StockSharp.Algo.Strategies
 		/// Получить режим работы стратегии (инициализация или торговля).
 		/// </summary>
 		/// <param name="strategy">Стратегия.</param>
-		/// <returns>Если выполняется инициализация - true, иначе - false.</returns>
+		/// <returns>Если выполняется инициализация - <see langword="true"/>, иначе - <see langword="false"/>.</returns>
 		public static bool GetIsInitialization(this Strategy strategy)
 		{
 			return strategy.Environment.GetValue("IsInitializationMode", false);
@@ -218,7 +218,7 @@ namespace StockSharp.Algo.Strategies
 		/// Установить режим работы стратегии (инициализация или торговля).
 		/// </summary>
 		/// <param name="strategy">Стратегия.</param>
-		/// <param name="isInitialization">Если выполняется инициализация - true, иначе - false.</param>
+		/// <param name="isInitialization">Если выполняется инициализация - <see langword="true"/>, иначе - <see langword="false"/>.</param>
 		public static void SetIsInitialization(this Strategy strategy, bool isInitialization)
 		{
 			strategy.Environment.SetValue("IsInitializationMode", isInitialization);
@@ -384,44 +384,46 @@ namespace StockSharp.Algo.Strategies
 			if (orders == null)
 				throw new ArgumentNullException("orders");
 
-			if (orders.IsEmpty())
+			var array = orders.ToArray();
+
+			if (array.IsEmpty())
 				throw new ArgumentOutOfRangeException("orders");
 
-			using (var connector = new RealTimeEmulationTrader<HistoryEmulationConnector>(new HistoryEmulationConnector(orders.Select(o => o.Security).Distinct(), orders.Select(o => o.Portfolio).Distinct())
+			using (var connector = new RealTimeEmulationTrader<HistoryMessageAdapter>(new HistoryMessageAdapter(new IncrementalIdGenerator(), new CollectionSecurityProvider(array.Select(o => o.Security).Distinct()))
 			{
 				StorageRegistry = storageRegistry
 			}))
 			{
-				var from = orders.Min(o => o.Time).Date;
+				var from = array.Min(o => o.Time);
 				var to = from.EndOfDay();
 
-				var strategy = new EquityStrategy(orders, openedPositions) { Connector = connector };
+				var strategy = new EquityStrategy(array, openedPositions) { Connector = connector };
 
 				var waitHandle = new SyncObject();
 
-				connector.UnderlyingConnector.StateChanged += () =>
-				{
-					if (connector.UnderlyingConnector.State == EmulationStates.Started)
-						strategy.Start();
+				//connector.UnderlyngMarketDataAdapter.StateChanged += () =>
+				//{
+				//	if (connector.UnderlyngMarketDataAdapter.State == EmulationStates.Started)
+				//		strategy.Start();
 
-					if (connector.UnderlyingConnector.State == EmulationStates.Stopped)
-					{
-						strategy.Stop();
+				//	if (connector.UnderlyngMarketDataAdapter.State == EmulationStates.Stopped)
+				//	{
+				//		strategy.Stop();
 
-						waitHandle.Pulse();
-					}
-				};
+				//		waitHandle.Pulse();
+				//	}
+				//};
 
-				connector.UnderlyingConnector.StartDate = from;
-				connector.UnderlyingConnector.StopDate = to;
+				connector.UnderlyngMarketDataAdapter.StartDate = from;
+				connector.UnderlyngMarketDataAdapter.StopDate = to;
 
 				connector.Connect();
 
-				lock (waitHandle)
-				{
-					if (connector.UnderlyingConnector.State != EmulationStates.Stopped)
-						waitHandle.Wait();
-				}
+				//lock (waitHandle)
+				//{
+				//	if (connector.UnderlyngMarketDataAdapter.State != EmulationStates.Stopped)
+				//		waitHandle.Wait();
+				//}
 
 				return strategy;
 			}

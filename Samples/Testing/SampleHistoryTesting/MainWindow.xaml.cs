@@ -11,11 +11,13 @@ namespace SampleHistoryTesting
 	using Ecng.Xaml;
 	using Ecng.Common;
 	using Ecng.Collections;
+	using Ecng.Localization;
 
 	using Ookii.Dialogs.Wpf;
 
 	using StockSharp.Algo;
 	using StockSharp.Algo.Candles;
+	using StockSharp.Algo.Candles.Compression;
 	using StockSharp.Algo.Commissions;
 	using StockSharp.Algo.Storages;
 	using StockSharp.Algo.Testing;
@@ -28,6 +30,22 @@ namespace SampleHistoryTesting
 
 	public partial class MainWindow
 	{
+		private class TradeCandleBuilderSourceEx : TradeCandleBuilderSource
+		{
+			public TradeCandleBuilderSourceEx(IConnector connector)
+				: base(connector)
+			{
+			}
+
+			protected override void RegisterSecurity(Security security)
+			{
+			}
+
+			protected override void UnRegisterSecurity(Security security)
+			{
+			}
+		}
+
 		// emulation settings
 		private sealed class EmulationInfo
 		{
@@ -37,8 +55,10 @@ namespace SampleHistoryTesting
 			public Color CurveColor { get; set; }
 			public string StrategyName { get; set; }
 			public bool UseOrderLog { get; set; }
+			public bool UseLevel1 { get; set; }
 		}
 
+		private readonly List<ProgressBar> _progressBars = new List<ProgressBar>();
 		private readonly List<HistoryEmulationConnector> _connectors = new List<HistoryEmulationConnector>();
 		private readonly BufferedChart _bufferedChart;
 		
@@ -59,8 +79,35 @@ namespace SampleHistoryTesting
 
 			HistoryPath.Text = @"..\..\..\HistoryData\".ToFullPath();
 
-			From.Value = new DateTime(2012, 10, 1);
-			To.Value = new DateTime(2012, 10, 25);
+			if (LocalizedStrings.ActiveLanguage == Languages.Russian)
+			{
+				SecId.Text = "RIZ2@FORTS";
+
+				From.Value = new DateTime(2012, 10, 1);
+				To.Value = new DateTime(2012, 10, 25);
+
+				TimeFrame.SelectedIndex = 1;
+			}
+			else
+			{
+				SecId.Text = "@ES#@CMEMINI";
+
+				From.Value = new DateTime(2015, 8, 1);
+				To.Value = new DateTime(2015, 8, 31);
+
+				TimeFrame.SelectedIndex = 0;
+			}
+
+			_progressBars.AddRange(new[]
+			{
+				TicksTestingProcess,
+				TicksAndDepthsTestingProcess,
+				DepthsTestingProcess,
+				CandlesTestingProcess,
+				CandlesAndDepthsTestingProcess,
+				OrderLogTestingProcess,
+				Level1TestingProcess,
+			});
 		}
 
 		private void FindPathClick(object sender, RoutedEventArgs e)
@@ -92,53 +139,69 @@ namespace SampleHistoryTesting
 				return;
 			}
 
-			var secIdParts = SecId.Text.Split('@');
+			var secGen = new SecurityIdGenerator();
+			var secIdParts = secGen.Split(SecId.Text);
 
-			if (secIdParts.Length != 2)
-			{
-				MessageBox.Show(this, LocalizedStrings.Str3016);
-				return;
-			}
+			//if (secIdParts.Length != 2)
+			//{
+			//	MessageBox.Show(this, LocalizedStrings.Str3016);
+			//	return;
+			//}
 
-			var timeFrame = TimeSpan.FromMinutes(5);
+			var timeFrame = TimeSpan.FromMinutes(TimeFrame.SelectedIndex == 0 ? 1 : 5);
 
 			// create backtesting modes
 			var settings = new[]
 			{
 				Tuple.Create(
-					TicksCheckBox, 
-					TicksTestingProcess, 
+					TicksCheckBox,
+					TicksTestingProcess,
 					TicksParameterGrid,
 					// ticks
-					new EmulationInfo {UseTicks = true, CurveColor = Colors.DarkGreen, StrategyName = LocalizedStrings.Str3017}),
+					new EmulationInfo {UseTicks = true, CurveColor = Colors.DarkGreen, StrategyName = LocalizedStrings.Ticks}),
 
 				Tuple.Create(
-					TicksAndDepthsCheckBox, 
-					TicksAndDepthsTestingProcess, 
+					TicksAndDepthsCheckBox,
+					TicksAndDepthsTestingProcess,
 					TicksAndDepthsParameterGrid,
 					// ticks + order book
-					new EmulationInfo {UseTicks = true, UseMarketDepth = true, CurveColor = Colors.Red, StrategyName = LocalizedStrings.Str3018}),
+					new EmulationInfo {UseTicks = true, UseMarketDepth = true, CurveColor = Colors.Red, StrategyName = LocalizedStrings.XamlStr757}),
 
 				Tuple.Create(
-					CandlesCheckBox, 
-					CandlesTestingProcess, 
+					DepthsCheckBox,
+					DepthsTestingProcess,
+					DepthsParameterGrid,
+					// order book
+					new EmulationInfo {UseMarketDepth = true, CurveColor = Colors.OrangeRed, StrategyName = LocalizedStrings.MarketDepths}),
+
+
+				Tuple.Create(
+					CandlesCheckBox,
+					CandlesTestingProcess,
 					CandlesParameterGrid,
 					// candles
-					new EmulationInfo {UseCandleTimeFrame = timeFrame, CurveColor = Colors.DarkBlue, StrategyName = LocalizedStrings.Str3019}),
+					new EmulationInfo {UseCandleTimeFrame = timeFrame, CurveColor = Colors.DarkBlue, StrategyName = LocalizedStrings.Candles}),
 				
 				Tuple.Create(
-					CandlesAndDepthsCheckBox, 
-					CandlesAndDepthsTestingProcess, 
+					CandlesAndDepthsCheckBox,
+					CandlesAndDepthsTestingProcess,
 					CandlesAndDepthsParameterGrid,
 					// candles + orderbook
-					new EmulationInfo {UseMarketDepth = true, UseCandleTimeFrame = timeFrame, CurveColor = Colors.Cyan, StrategyName = LocalizedStrings.Str3020}),
+					new EmulationInfo {UseMarketDepth = true, UseCandleTimeFrame = timeFrame, CurveColor = Colors.Cyan, StrategyName = LocalizedStrings.XamlStr635}),
 			
 				Tuple.Create(
-					OrderLogCheckBox, 
-					OrderLogTestingProcess, 
+					OrderLogCheckBox,
+					OrderLogTestingProcess,
 					OrderLogParameterGrid,
 					// order log
-					new EmulationInfo {UseOrderLog = true, CurveColor = Colors.CornflowerBlue, StrategyName = LocalizedStrings.Str3021})
+					new EmulationInfo {UseOrderLog = true, CurveColor = Colors.CornflowerBlue, StrategyName = LocalizedStrings.OrderLog}),
+
+				Tuple.Create(
+					Level1CheckBox,
+					Level1TestingProcess,
+					Level1ParameterGrid,
+					// order log
+					new EmulationInfo {UseLevel1 = true, CurveColor = Colors.Aquamarine, StrategyName = LocalizedStrings.Level1})
 			};
 
 			// storage to historical data
@@ -148,8 +211,8 @@ namespace SampleHistoryTesting
 				DefaultDrive = new LocalMarketDataDrive(HistoryPath.Text)
 			};
 
-			var startTime = (DateTime)From.Value;
-			var stopTime = (DateTime)To.Value;
+			var startTime = ((DateTime)From.Value).ChangeKind(DateTimeKind.Utc);
+			var stopTime = ((DateTime)To.Value).ChangeKind(DateTimeKind.Utc);
 
 			// ОЛ необходимо загружать с 18.45 пред дня, чтобы стаканы строились правильно
 			if (OrderLogCheckBox.IsChecked == true)
@@ -159,9 +222,12 @@ namespace SampleHistoryTesting
 			var progressStep = ((stopTime - startTime).Ticks / 100).To<TimeSpan>();
 
 			// set ProgressBar bounds
-			TicksTestingProcess.Maximum = TicksAndDepthsTestingProcess.Maximum = CandlesTestingProcess.Maximum = 100;
-			TicksTestingProcess.Value = TicksAndDepthsTestingProcess.Value = CandlesTestingProcess.Value = 0;
-
+			_progressBars.ForEach(p =>
+			{
+				p.Value = 0;
+				p.Maximum = 100;
+			});
+			
 			var logManager = new LogManager();
 			var fileLogListener = new FileLogListener("sample.log");
 			logManager.Listeners.Add(fileLogListener);
@@ -171,8 +237,8 @@ namespace SampleHistoryTesting
 			var maxDepth = MaxDepth.Text.To<int>();
 			var maxVolume = MaxVolume.Text.To<int>();
 
-			var secCode = secIdParts[0];
-			var board = ExchangeBoard.GetOrCreateBoard(secIdParts[1]);
+			var secCode = secIdParts.Item1;
+			var board = ExchangeBoard.GetOrCreateBoard(secIdParts.Item2);
 
 			foreach (var set in settings)
 			{
@@ -196,7 +262,7 @@ namespace SampleHistoryTesting
 					SecurityId = security.ToSecurityId(),
 					ServerTime = startTime,
 				}
-				.TryAdd(Level1Fields.PriceStep, 10m)
+				.TryAdd(Level1Fields.PriceStep, secIdParts.Item1 == "RIZ2" ? 10m : 1)
 				.TryAdd(Level1Fields.StepPrice, 6m)
 				.TryAdd(Level1Fields.MinPrice, 10m)
 				.TryAdd(Level1Fields.MaxPrice, 1000000m)
@@ -215,28 +281,33 @@ namespace SampleHistoryTesting
 					new[] { security },
 					new[] { portfolio })
 				{
-					StorageRegistry = storageRegistry,
-					MarketEmulator =
+					EmulationAdapter =
 					{
-						Settings =
+						Emulator =
 						{
-							// set time frame is backtesting on candles
-							UseCandlesTimeFrame = emulationInfo.UseCandleTimeFrame,
-
-							// match order if historical price touched our limit order price. 
-							// It is terned off, and price should go through limit order price level
-							// (more "severe" test mode)
-							MatchOnTouch = false,
+							Settings =
+							{
+								// match order if historical price touched our limit order price. 
+								// It is terned off, and price should go through limit order price level
+								// (more "severe" test mode)
+								MatchOnTouch = false,
+							}
 						}
 					},
 
-					//UseExternalCandleSource = true,
+					UseExternalCandleSource = emulationInfo.UseCandleTimeFrame != null,
+
 					CreateDepthFromOrdersLog = emulationInfo.UseOrderLog,
 					CreateTradesFromOrdersLog = emulationInfo.UseOrderLog,
 
-					// set history range
-					StartDate = startTime,
-					StopDate = stopTime,
+					HistoryMessageAdapter =
+					{
+						StorageRegistry = storageRegistry,
+
+						// set history range
+						StartDate = startTime,
+						StopDate = stopTime,
+					},
 
 					// set market time freq as time frame
 					MarketTimeChangedInterval = timeFrame,
@@ -246,7 +317,10 @@ namespace SampleHistoryTesting
 
 				logManager.Sources.Add(connector);
 
-				var candleManager = new CandleManager(connector);
+				var candleManager = emulationInfo.UseCandleTimeFrame == null
+					? new CandleManager(new TradeCandleBuilderSourceEx(connector))
+					: new CandleManager(connector);
+
 				var series = new CandleSeries(typeof(TimeFrameCandle), security, timeFrame);
 
 				_shortMa = new SimpleMovingAverage { Length = 10 };
@@ -327,6 +401,11 @@ namespace SampleHistoryTesting
 						connector.RegisterTrades(security);
 					}
 
+					if (emulationInfo.UseLevel1)
+					{
+						connector.RegisterSecurity(security);
+					}
+
 					// start strategy before emulation started
 					strategy.Start();
 					candleManager.Start(series);
@@ -339,7 +418,7 @@ namespace SampleHistoryTesting
 				statistic.Parameters.Clear();
 				statistic.Parameters.AddRange(strategy.StatisticManager.Parameters);
 
-				var pnlCurve = Curve.CreateCurve("P&L " + emulationInfo.StrategyName, emulationInfo.CurveColor, EquityCurveChartStyles.Area);
+				var pnlCurve = Curve.CreateCurve(LocalizedStrings.PnL + " " + emulationInfo.StrategyName, emulationInfo.CurveColor, EquityCurveChartStyles.Area);
 				var unrealizedPnLCurve = Curve.CreateCurve(LocalizedStrings.PnLUnreal + emulationInfo.StrategyName, Colors.Black);
 				var commissionCurve = Curve.CreateCurve(LocalizedStrings.Str159 + " " + emulationInfo.StrategyName, Colors.Red, EquityCurveChartStyles.DashedLine);
 				var posItems = PositionCurve.CreateCurve(emulationInfo.StrategyName, emulationInfo.CurveColor);
@@ -451,10 +530,12 @@ namespace SampleHistoryTesting
 		private void CheckBoxClick(object sender, RoutedEventArgs e)
 		{
 			var isEnabled = TicksCheckBox.IsChecked == true ||
-			                TicksAndDepthsCheckBox.IsChecked == true ||
-			                CandlesCheckBox.IsChecked == true ||
-			                CandlesAndDepthsCheckBox.IsChecked == true ||
-			                OrderLogCheckBox.IsChecked == true;
+							TicksAndDepthsCheckBox.IsChecked == true ||
+							DepthsCheckBox.IsChecked == true ||
+							CandlesCheckBox.IsChecked == true ||
+							CandlesAndDepthsCheckBox.IsChecked == true ||
+							OrderLogCheckBox.IsChecked == true ||
+							Level1CheckBox.IsChecked == true;
 
 			StartBtn.IsEnabled = isEnabled;
 			TabControl.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
@@ -490,8 +571,10 @@ namespace SampleHistoryTesting
 			{
 				StopBtn.IsEnabled = started;
 				StartBtn.IsEnabled = !started;
-				TicksCheckBox.IsEnabled = TicksAndDepthsCheckBox.IsEnabled = CandlesCheckBox.IsEnabled
-					= CandlesAndDepthsCheckBox.IsEnabled = OrderLogCheckBox.IsEnabled = !started;
+
+				TicksCheckBox.IsEnabled = TicksAndDepthsCheckBox.IsEnabled = DepthsCheckBox.IsEnabled =
+				CandlesCheckBox.IsEnabled = CandlesAndDepthsCheckBox.IsEnabled = OrderLogCheckBox.IsEnabled = 
+				Level1CheckBox.IsEnabled = !started;
 
 				_bufferedChart.IsAutoRange = started;
 			});

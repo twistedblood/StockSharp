@@ -23,8 +23,9 @@ namespace StockSharp.InteractiveBrokers
 			switch (mdMsg.DataType)
 			{
 				case MarketDataTypes.Level1:
+				case MarketDataTypes.Trades:
 				{
-					var key = Tuple.Create(mdMsg.DataType, mdMsg.SecurityId, (object)null);
+					var key = Tuple.Create(MarketDataTypes.Level1, mdMsg.SecurityId, (object)null);
 
 					if (mdMsg.IsSubscribe)
 					{
@@ -50,8 +51,6 @@ namespace StockSharp.InteractiveBrokers
 
 					break;
 				}
-				case MarketDataTypes.Trades:
-					break;
 				case MarketDataTypes.News:
 				{
 					if (mdMsg.IsSubscribe)
@@ -63,13 +62,14 @@ namespace StockSharp.InteractiveBrokers
 				}
 				case MarketDataTypes.CandleTimeFrame:
 				{
-					var key = Tuple.Create(mdMsg.DataType, mdMsg.SecurityId, (object)Tuple.Create(mdMsg.Arg, mdMsg.To == DateTimeOffset.MaxValue));
+					var isRealTime = mdMsg.To == null;
+					var key = Tuple.Create(mdMsg.DataType, mdMsg.SecurityId, (object)Tuple.Create(mdMsg.Arg, isRealTime));
 
 					if (mdMsg.IsSubscribe)
 					{
 						_requestIds.Add(key, mdMsg.TransactionId);
 
-						if (mdMsg.To == DateTimeOffset.MaxValue)
+						if (isRealTime)
 							SubscribeRealTimeCandles(mdMsg);
 						else
 							SubscribeHistoricalCandles(mdMsg, CandleDataTypes.Trades);
@@ -78,7 +78,7 @@ namespace StockSharp.InteractiveBrokers
 					{
 						var requestId = _requestIds[key];
 
-						if (mdMsg.To == DateTimeOffset.MaxValue)
+						if (isRealTime)
 							UnSubscribeRealTimeCandles(mdMsg, requestId);
 						else
 						{
@@ -400,7 +400,7 @@ namespace StockSharp.InteractiveBrokers
 		}
 
 		/// <summary>
-		/// Подписаться на получение исторических значения инструмента с заданной периодичностью.
+		/// Подписаться на получение исторических значений инструмента с заданной периодичностью.
 		/// </summary>
 		/// <param name="message">Сообщение о подписке или отписки на маркет-данные.</param>
 		/// <param name="field">Поле маркет-данных. Поддерживаются следующие значения:
@@ -452,9 +452,9 @@ namespace StockSharp.InteractiveBrokers
 						.SendSecurity(message)
 						.SendIf(ServerVersions.V68, s => socket.Send(message.Class))
 						.SendIncludeExpired(message.ExpiryDate)
-						.SendEndDate(message.To)
+						.SendEndDate(message.To ?? DateTimeOffset.MaxValue)
 						.SendTimeFrame(timeFrame)
-						.Send(ConvertPeriodtoIb(message.From, message.To))
+						.Send(ConvertPeriodtoIb(message.From ?? DateTimeOffset.MinValue, message.To ?? DateTimeOffset.MaxValue))
 						.Send(useRth)
 						.SendLevel1Field(field);
 
@@ -579,7 +579,7 @@ namespace StockSharp.InteractiveBrokers
 					.SendIf(ServerVersions.V68, s => socket.SendContractId(message.SecurityId))
 					.SendSecurity(message, false)
 					.SendIf(ServerVersions.V68, s => socket.Send(message.Class))
-					.SendIf(ServerVersions.V19, s => socket.Send(message.MaxDepth))
+					.SendIf(ServerVersions.V19, s => socket.Send(message.MaxDepth ?? MarketDataMessage.DefaultMaxDepth))
 					.SendIf(ServerVersions.V70, s =>
 					{
 						//StringBuilder realTimeBarsOptionsStr = new StringBuilder();
@@ -612,7 +612,7 @@ namespace StockSharp.InteractiveBrokers
 		/// <summary>
 		/// Call this method to start receiving news bulletins. Each bulletin will be returned by the updateNewsBulletin() method.
 		/// </summary>
-		/// <param name="allMessages">if set to TRUE, returns all the existing bulletins for the current day and any new ones. IF set to FALSE, will only return new bulletins.</param>
+		/// <param name="allMessages">if set to <see langword="true"/>, returns all the existing bulletins for the current day and any new ones. IF set to <see langword="false"/>, will only return new bulletins.</param>
 		private void SubscribeNewsBulletins(bool allMessages)
 		{
 			ProcessRequest(RequestMessages.SubscribeNewsBulletins, 0, ServerVersions.V1, socket => socket.Send(allMessages));
@@ -649,7 +649,7 @@ namespace StockSharp.InteractiveBrokers
 				}
 
 				socket
-					.SendSecurity(criteria, false)
+					.SendSecurity(criteria, socket.ServerVersion >= ServerVersions.V70, socket.ServerVersion >= ServerVersions.V75)
 					.SendIf(ServerVersions.V68, s => socket.Send(criteria.Class))
 					.SendIncludeExpired(criteria.ExpiryDate)
 					.SendSecurityId(criteria.SecurityId);

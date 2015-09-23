@@ -13,14 +13,19 @@ namespace StockSharp.ETrade
 	using StockSharp.Messages;
 	using StockSharp.Localization;
 
+	/// <summary>
+	/// The messages adapter for ETrade.
+	/// </summary>
 	partial class ETradeMessageAdapter
 	{
 		private readonly SynchronizedPairSet<long, long> _ordersByTransactionId = new SynchronizedPairSet<long, long>(); 
 
-		/// <summary>Коллбэк результата (пере)регистрации заявки.</summary>
-		/// <param name="transId">Идентификатор транзакции.</param>
-		/// <param name="data">Результат (пере)регистрации.</param>
-		/// <param name="ex">Ошибка (пере)регистрации.</param>
+		/// <summary>
+		/// Callback of the order (re)registration.
+		/// </summary>
+		/// <param name="transId">Transaction ID.</param>
+		/// <param name="data">(Re)registration result.</param>
+		/// <param name="ex">(Re)registration error.</param>
 		private void ClientOnOrderRegisterResult(long transId, PlaceEquityOrderResponse2 data, Exception ex)
 		{
 			if (ex != null)
@@ -39,7 +44,7 @@ namespace StockSharp.ETrade
 
 			var msg = new ExecutionMessage
 			{
-				SecurityId = new SecurityId { SecurityCode = data.symbol, BoardCode = "EQ" },
+				SecurityId = new SecurityId { SecurityCode = data.symbol, BoardCode = AssociatedBoardCode },
 				PortfolioName = data.accountId.To<string>(),
 				Side = data.orderAction.ETradeActionToSide(),
 				OriginalTransactionId = transId,
@@ -60,11 +65,13 @@ namespace StockSharp.ETrade
 			SendOutMessage(msg);
 		}
 
-		/// <summary>Коллбэк результата отмены заявки.</summary>
-		/// <param name="cancelTransId">Идентификатор транзакции отмены заявки.</param>
-		/// <param name="orderId">Идентификатор заявки.</param>
-		/// <param name="data">Результат отмены.</param>
-		/// <param name="ex">Ошибка отмены.</param>
+		/// <summary>
+		/// Cancellation order result callback.
+		/// </summary>
+		/// <param name="cancelTransId">Cancellation transaction id.</param>
+		/// <param name="orderId">Order ID.</param>
+		/// <param name="data">Cancellation result.</param>
+		/// <param name="ex">Error cancellation.</param>
 		private void ClientOnOrderCancelResult(long cancelTransId, long orderId, CancelOrderResponse2 data, Exception ex)
 		{
 			if (ex != null)
@@ -99,7 +106,7 @@ namespace StockSharp.ETrade
 		/// <param name="portName">Имя портфеля.</param>
 		/// <param name="data">Результат запроса списка заявок.</param>
 		/// <param name="ex">Ошибка запроса списка заявок.</param>
-		private void ClientOnOrdersData(string portName, List<Order> data, Exception ex)
+		private void ClientOnOrdersData(string portName, IEnumerable<Order> data, Exception ex)
 		{
 			if (ex != null)
 			{
@@ -116,8 +123,8 @@ namespace StockSharp.ETrade
 
 				var secId = new SecurityId
 				{
-					SecurityCode = leg.symbolInfo.symbol, 
-					BoardCode = "EQ"
+					SecurityCode = leg.symbolInfo.symbol,
+					BoardCode = AssociatedBoardCode
 				};
 
 				var transId = _ordersByTransactionId.TryGetKey(nativeOrder.orderId);
@@ -185,9 +192,11 @@ namespace StockSharp.ETrade
 			}
 		}
 
-		/// <summary>Коллбэк результата запроса списка портфелей.</summary>
-		/// <param name="data">Результат запроса списка портфелей.</param>
-		/// <param name="ex">Ошибка запроса списка портфелей.</param>
+		/// <summary>
+		/// Callback of the portfolios request.
+		/// </summary>
+		/// <param name="data">Result of the portfolios request.</param>
+		/// <param name="ex">Error of the portfolios request.</param>
 		private void ClientOnAccountsData(List<AccountInfo> data, Exception ex)
 		{
 			if (ex != null)
@@ -213,7 +222,7 @@ namespace StockSharp.ETrade
 		/// <param name="portfName">Имя портфеля.</param>
 		/// <param name="data">Результат запроса списка позиций.</param>
 		/// <param name="ex">Ошибка запроса списка позиций.</param>
-		private void ClientOnPositionsData(string portfName, List<PositionInfo> data, Exception ex)
+		private void ClientOnPositionsData(string portfName, IEnumerable<PositionInfo> data, Exception ex)
 		{
 			if (ex != null)
 			{

@@ -32,7 +32,7 @@
 
 	static class QuikFixExtensions
 	{
-		public static void WriteOrderCondition(this IFixWriter writer, QuikOrderCondition condition)
+		public static void WriteOrderCondition(this IFixWriter writer, QuikOrderCondition condition, string dateTimeFormat)
 		{
 			if (writer == null)
 				throw new ArgumentNullException("writer");
@@ -97,10 +97,10 @@
 			if (condition.ActiveTime != null)
 			{
 				writer.Write((FixTags)QuikFixTags.ActiveTimeFrom);
-				writer.Write(condition.ActiveTime.Min.UtcDateTime);
+				writer.Write(condition.ActiveTime.Min.UtcDateTime, dateTimeFormat);
 
 				writer.Write((FixTags)QuikFixTags.ActiveTimeTo);
-				writer.Write(condition.ActiveTime.Max.UtcDateTime);
+				writer.Write(condition.ActiveTime.Max.UtcDateTime, dateTimeFormat);
 			}
 
 			if (condition.ConditionOrderId != null)
@@ -146,7 +146,7 @@
 			}
 		}
 
-		public static bool ReadOrderCondition(this IFixReader reader, FixTags tag, TimeSpan dateTimeOffset, Func<QuikOrderCondition> getCondition)
+		public static bool ReadOrderCondition(this IFixReader reader, FixTags tag, TimeZoneInfo timeZone, string dateTimeFormat, Func<QuikOrderCondition> getCondition)
 		{
 			if (getCondition == null)
 				throw new ArgumentNullException("getCondition");
@@ -184,13 +184,13 @@
 					if (getCondition().ActiveTime == null)
 						getCondition().ActiveTime = new Range<DateTimeOffset>();
 
-					getCondition().ActiveTime.Min = reader.ReadDateTime().ApplyTimeZone(dateTimeOffset);
+					getCondition().ActiveTime.Min = reader.ReadDateTime(dateTimeFormat).ToDateTimeOffset(timeZone);
 					return true;
 				case QuikFixTags.ActiveTimeTo:
 					if (getCondition().ActiveTime == null)
 						getCondition().ActiveTime = new Range<DateTimeOffset>();
 
-					getCondition().ActiveTime.Max = reader.ReadDateTime().ApplyTimeZone(dateTimeOffset);
+					getCondition().ActiveTime.Max = reader.ReadDateTime(dateTimeFormat).ToDateTimeOffset(timeZone);
 					return true;
 				case QuikFixTags.ConditionOrderId:
 					getCondition().ConditionOrderId = reader.ReadLong();

@@ -8,16 +8,15 @@ namespace StockSharp.Xaml
 	using Ecng.ComponentModel;
 
 	using StockSharp.Messages;
+	using StockSharp.Localization;
 
 	using Xceed.Wpf.Toolkit;
 	using Xceed.Wpf.Toolkit.Primitives;
 
 	using ComboItem = System.Collections.Generic.KeyValuePair<StockSharp.Messages.Level1Fields, string>;
 
-	using StockSharp.Localization;
-
 	/// <summary>
-	/// Выпадающий список для выбора набора полей <see cref="Level1Fields"/>.
+	/// The drop-down list to select a set of fields <see cref="Level1Fields"/>.
 	/// </summary>
 	public class Level1FieldsComboBox : CheckComboBox
 	{
@@ -47,24 +46,8 @@ namespace StockSharp.Xaml
 				Level1Fields.BestAskTime,
 				Level1Fields.BestAskVolume
 			}).ToArray();
-		}
 
-		/// <summary>
-		/// Создать <see cref="Level1FieldsComboBox"/>.
-		/// </summary>
-		public Level1FieldsComboBox()
-		{
-			ValueMemberPath = "Key";
-			DisplayMemberPath = "Value";
-
-			ItemsSource = _allFields;
-		}
-
-		/// <summary>
-		/// <see cref="DependencyProperty"/> для <see cref="SelectedFields"/>.
-		/// </summary>
-		public static readonly DependencyProperty SelectedFieldsProperty = DependencyProperty.Register("SelectedFields",
-			typeof(IEnumerable<Level1Fields>), typeof(Level1FieldsComboBox), new UIPropertyMetadata(DefaultFields, (s, e) =>
+			SelectedFieldsProperty = DependencyProperty.Register("SelectedFields", typeof(IEnumerable<Level1Fields>), typeof(Level1FieldsComboBox), new UIPropertyMetadata(DefaultFields, (s, e) =>
 			{
 				var comboBox = s as Level1FieldsComboBox;
 
@@ -91,9 +74,26 @@ namespace StockSharp.Xaml
 
 				comboBox.Text = LocalizedStrings.Str1544 + count;
 			}));
+		}
 
 		/// <summary>
-		/// Список выбранных полей.
+		/// Initializes a new instance of the <see cref="Level1FieldsComboBox"/>.
+		/// </summary>
+		public Level1FieldsComboBox()
+		{
+			ValueMemberPath = "Key";
+			DisplayMemberPath = "Value";
+
+			ItemsSource = _allFields;
+		}
+
+		/// <summary>
+		/// <see cref="DependencyProperty"/> for <see cref="Level1FieldsComboBox.SelectedFields"/>.
+		/// </summary>
+		public static readonly DependencyProperty SelectedFieldsProperty;
+
+		/// <summary>
+		/// The list of selected fields.
 		/// </summary>
 		public IEnumerable<Level1Fields> SelectedFields
 		{
@@ -102,14 +102,14 @@ namespace StockSharp.Xaml
 		}
 
 		/// <summary>
-		/// Набор выбранных полей по-умолчанию.
+		/// The set of selected default fields.
 		/// </summary>
 		public static IEnumerable<Level1Fields> DefaultFields { get; private set; }
 
 		/// <summary>
-		/// Метод, который вызывается при изменении значения у элемента.
+		/// The method that is called when the value of the item is changed.
 		/// </summary>
-		/// <param name="e">Аргументы.</param>
+		/// <param name="e">Arguments.</param>
 		protected override void OnItemSelectionChanged(ItemSelectionChangedEventArgs e)
 		{
 			base.OnItemSelectionChanged(e);

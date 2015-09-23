@@ -100,7 +100,7 @@ namespace StockSharp.Algo.Candles.Compression
 		protected abstract IMarketDataStorage<TSourceValue> GetStorage(Security security);
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>
@@ -121,7 +121,7 @@ namespace StockSharp.Algo.Candles.Compression
 		/// <param name="series">Серия свечек.</param>
 		/// <param name="from">Начальная дата, с которой необходимо получать данные.</param>
 		/// <param name="to">Конечная дата, до которой необходимо получать данные.</param>
-		/// <returns>Данные. Если данных не существует для заданного диапазона, то будет возвращено null.</returns>
+		/// <returns>Данные. Если данных не существует для заданного диапазона, то будет возвращено <see langword="null"/>.</returns>
 		protected virtual IEnumerable<TSourceValue> GetValues(CandleSeries series, DateTimeOffset from, DateTimeOffset to)
 		{
 			var storage = GetStorage(series.Security);
@@ -323,7 +323,7 @@ namespace StockSharp.Algo.Candles.Compression
 		}
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>
@@ -344,7 +344,7 @@ namespace StockSharp.Algo.Candles.Compression
 		/// <param name="series">Серия свечек.</param>
 		/// <param name="from">Начальная дата, с которой необходимо получать данные.</param>
 		/// <param name="to">Конечная дата, до которой необходимо получать данные.</param>
-		/// <returns>Данные. Если данных не существует для заданного диапазона, то будет возвращено null.</returns>
+		/// <returns>Данные. Если данных не существует для заданного диапазона, то будет возвращено <see langword="null"/>.</returns>
 		protected override IEnumerable<Trade> GetValues(CandleSeries series, DateTimeOffset from, DateTimeOffset to)
 		{
 			var storage = StorageRegistry.GetOrderLogStorage(series.Security, Drive);

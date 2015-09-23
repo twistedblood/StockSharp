@@ -51,7 +51,7 @@ namespace StockSharp.Algo
 			return security;
 		}
 
-		public static int ChangeSubscribers<T>(this CachedSynchronizedDictionary<T, int> subscribers, T subscriber, int delta)
+		public static int ChangeSubscribers<T>(this CachedSynchronizedDictionary<T, int> subscribers, T subscriber, bool isSubscribe)
 		{
 			if (subscribers == null)
 				throw new ArgumentNullException("subscribers");
@@ -60,7 +60,13 @@ namespace StockSharp.Algo
 			{
 				var value = subscribers.TryGetValue2(subscriber) ?? 0;
 
-				value += delta;
+				if (isSubscribe)
+					value++;
+				else
+				{
+					if (value > 0)
+						value--;
+				}
 
 				if (value > 0)
 					subscribers[subscriber] = value;
@@ -97,23 +103,6 @@ namespace StockSharp.Algo
 			return price.Value;
 		}
 
-		public static decimal GetVolume(this ExecutionMessage message)
-		{
-			if (message == null)
-				throw new ArgumentNullException("message");
-
-			var volume = message.Volume;
-
-			if (volume != null)
-				return volume.Value;
-
-			var errorMsg = message.ExecutionType == ExecutionTypes.Tick || message.ExecutionType == ExecutionTypes.Trade
-				? LocalizedStrings.Str1022Params.Put((object)message.TradeId ?? message.TradeStringId)
-				: LocalizedStrings.Str927Params.Put((object)message.OrderId ?? message.OrderStringId);
-
-			throw new ArgumentOutOfRangeException("message", null, errorMsg);
-		}
-
 		public static decimal GetBalance(this ExecutionMessage message)
 		{
 			if (message == null)
@@ -125,19 +114,6 @@ namespace StockSharp.Algo
 				return balance.Value;
 
 			throw new ArgumentOutOfRangeException("message");
-		}
-
-		public static long GetOrderId(this ExecutionMessage message)
-		{
-			if (message == null)
-				throw new ArgumentNullException("message");
-
-			var orderId = message.OrderId;
-
-			if (orderId != null)
-				return orderId.Value;
-
-			throw new ArgumentOutOfRangeException("message", null, LocalizedStrings.Str925);
 		}
 	}
 }

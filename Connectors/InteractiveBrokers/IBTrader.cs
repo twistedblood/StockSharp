@@ -292,17 +292,22 @@
 		public event Action<CandleSeries, IEnumerable<Candle>> NewCandles;
 
 		/// <summary>
+		/// Событие окончания обработки серии.
+		/// </summary>
+		public event Action<CandleSeries> Stopped;
+
+		/// <summary>
 		/// Событие появление нового отчета, полученного по подписке <see cref="SubscribeFundamentalReport"/>.
 		/// </summary>
 		public event Action<Security, FundamentalReports, string> NewFundamentalReport;
 
 		/// <summary>
-		/// Событие о появлении новых параметров сканера, которые применяются через <see cref="ScannerFilter"/>. Параметры передаются ввиде xml.
+		/// Событие о появлении новых параметров сканера, которые применяются через <see cref="ScannerFilter"/>. Параметры передаются в виде xml.
 		/// </summary>
 		public event Action<string> NewScannerParameters;
 
 		/// <summary>
-		/// Событие о появлении новых финансовых консультаций. Параметры передаются ввиде xml.
+		/// Событие о появлении новых финансовых консультаций. Параметры передаются в виде xml.
 		/// </summary>
 		public event Action<int, string> NewFinancialAdvise;
 
@@ -315,11 +320,11 @@
 		/// Отменить группу заявок на бирже по фильтру.
 		/// </summary>
 		/// <param name="transactionId">Идентификатор транзакции отмены.</param>
-		/// <param name="isStopOrder"><see langword="true"/>, если нужно отменить только стоп-заявки, false - если только обычный и null - если оба типа.</param>
-		/// <param name="portfolio">Портфель. Если значение равно null, то портфель не попадает в фильтр снятия заявок.</param>
-		/// <param name="direction">Направление заявки. Если значение равно null, то направление не попадает в фильтр снятия заявок.</param>
-		/// <param name="board">Торговая площадка. Если значение равно null, то площадка не попадает в фильтр снятия заявок.</param>
-		/// <param name="security">Инструмент. Если значение равно null, то инструмент не попадает в фильтр снятия заявок.</param>
+		/// <param name="isStopOrder"><see langword="true"/>, если нужно отменить только стоп-заявки, <see langword="false"/> - если только обычный и <see langword="null"/> - если оба типа.</param>
+		/// <param name="portfolio">Портфель. Если значение равно <see langword="null"/>, то портфель не попадает в фильтр снятия заявок.</param>
+		/// <param name="direction">Направление заявки. Если значение равно <see langword="null"/>, то направление не попадает в фильтр снятия заявок.</param>
+		/// <param name="board">Торговая площадка. Если значение равно <see langword="null"/>, то площадка не попадает в фильтр снятия заявок.</param>
+		/// <param name="security">Инструмент. Если значение равно <see langword="null"/>, то инструмент не попадает в фильтр снятия заявок.</param>
 		protected override void OnCancelOrders(long transactionId, bool? isStopOrder = null, Portfolio portfolio = null, Sides? direction = null, ExchangeBoard board = null, Security security = null)
 		{
 			if (isStopOrder == null && portfolio == null && direction == null && board == null && security == null)
@@ -390,7 +395,7 @@
 		}
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>
@@ -495,6 +500,9 @@
 					{
 						var candle = candleMsg.ToCandle(series);
 						NewCandles.SafeInvoke(series, new[] { candle });
+
+						if (candleMsg.IsFinished)
+							Stopped.SafeInvoke(series);
 					}
 
 					return;

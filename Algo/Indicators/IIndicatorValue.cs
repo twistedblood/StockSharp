@@ -132,17 +132,17 @@ namespace StockSharp.Algo.Indicators
 		public abstract IIndicatorValue SetValue<T>(IIndicator indicator, T value);
 
 		/// <summary>
-		/// Сравнить с другим значением индикатора.
+		/// Сравнить <see cref="IIndicatorValue" /> на эквивалентность.
 		/// </summary>
 		/// <param name="other">Другое значение, с которым необходимо сравнивать.</param>
-		/// <returns>Код сравнения.</returns>
+		/// <returns>Результат сравнения.</returns>
 		public abstract int CompareTo(IIndicatorValue other);
 
 		/// <summary>
-		/// Сравнить с другим значением индикатора.
+		/// Сравнить <see cref="IIndicatorValue" /> на эквивалентность.
 		/// </summary>
 		/// <param name="other">Другое значение, с которым необходимо сравнивать.</param>
-		/// <returns>Код сравнения.</returns>
+		/// <returns>Результат сравнения.</returns>
 		int IComparable.CompareTo(object other)
 		{
 			var value = other as IIndicatorValue;
@@ -242,10 +242,10 @@ namespace StockSharp.Algo.Indicators
 		}
 
 		/// <summary>
-		/// Сравнить с другим значением индикатора.
+		/// Сравнить <see cref="SingleIndicatorValue{T}" /> на эквивалентность.
 		/// </summary>
 		/// <param name="other">Другое значение, с которым необходимо сравнивать.</param>
-		/// <returns>Код сравнения.</returns>
+		/// <returns>Результат сравнения.</returns>
 		public override int CompareTo(IIndicatorValue other)
 		{
 			return Value.Compare(other.GetValue<TValue>());
@@ -284,16 +284,6 @@ namespace StockSharp.Algo.Indicators
 			: base(indicator)
 		{
 		}
-
-		///// <summary>
-		///// Привести <see cref="decimal"/> значение к объекту <see cref="DecimalIndicatorValue"/>.
-		///// </summary>
-		///// <param name="value"><see cref="decimal"/> значение.</param>
-		///// <returns>Объект <see cref="DecimalIndicatorValue"/>.</returns>
-		//public static implicit operator DecimalIndicatorValue(decimal value)
-		//{
-		//	return new DecimalIndicatorValue(value);
-		//}
 
 		/// <summary>
 		/// Изменить входное значение индикатора новым значением (например, оно получено от другого индикатора).
@@ -370,16 +360,6 @@ namespace StockSharp.Algo.Indicators
 		/// Конвертер, который берет из свечи середину тела (<see cref="Candle.OpenPrice"/> + <see cref="Candle.ClosePrice"/>) / 2.
 		/// </summary>
 		public static readonly Func<Candle, decimal> ByMiddle = c => (c.ClosePrice + c.OpenPrice) / 2;
-
-		///// <summary>
-		///// Привести <see cref="Candle"/> значение к объекту <see cref="CandleIndicatorValue"/>.
-		///// </summary>
-		///// <param name="value"><see cref="Candle"/> значение.</param>
-		///// <returns>Объект <see cref="CandleIndicatorValue"/>.</returns>
-		//public static implicit operator CandleIndicatorValue(Candle value)
-		//{
-		//	return new CandleIndicatorValue(value);
-		//}
 
 		/// <summary>
 		/// Поддерживает ли значение необходимый для индикатора тип данных.
@@ -508,6 +488,47 @@ namespace StockSharp.Algo.Indicators
 	}
 
 	/// <summary>
+	/// Значение индикатора, работающее с парой <see ref="Tuple{TValue, TValue}"/>.
+	/// </summary>
+	public class PairIndicatorValue<TValue> : SingleIndicatorValue<Tuple<TValue, TValue>>
+	{
+		/// <summary>
+		/// Создать <see cref="PairIndicatorValue{TValue}"/>.
+		/// </summary>
+		/// <param name="indicator">Индикатор.</param>
+		/// <param name="value">Значение.</param>
+		public PairIndicatorValue(IIndicator indicator, Tuple<TValue, TValue> value)
+			: base(indicator, value)
+		{
+		}
+
+		/// <summary>
+		/// Создать <see cref="PairIndicatorValue{TValue}"/>.
+		/// </summary>
+		/// <param name="indicator">Индикатор.</param>
+		public PairIndicatorValue(IIndicator indicator)
+			: base(indicator)
+		{
+		}
+
+		/// <summary>
+		/// Изменить входное значение индикатора новым значением (например, оно получено от другого индикатора).
+		/// </summary>
+		/// <typeparam name="T">Тип данных, которым оперирует индикатор.</typeparam>
+		/// <param name="indicator">Индикатор.</param>
+		/// <param name="value">Значение.</param>
+		/// <returns>Новый объект, содержащий входное значение.</returns>
+		public override IIndicatorValue SetValue<T>(IIndicator indicator, T value)
+		{
+			return new PairIndicatorValue<TValue>(indicator, GetValue<Tuple<TValue, TValue>>())
+			{
+				IsFinal = IsFinal,
+				InputValue = this
+			};
+		}
+	}
+
+	/// <summary>
 	/// Комплексное значение индикатора <see cref="IComplexIndicator"/>, которое получается в результате вычисления.
 	/// </summary>
 	public class ComplexIndicatorValue : BaseIndicatorValue
@@ -575,10 +596,10 @@ namespace StockSharp.Algo.Indicators
 		}
 
 		/// <summary>
-		/// Сравнить с другим значением индикатора.
+		/// Сравнить <see cref="ComplexIndicatorValue" /> на эквивалентность.
 		/// </summary>
 		/// <param name="other">Другое значение, с которым необходимо сравнивать.</param>
-		/// <returns>Код сравнения.</returns>
+		/// <returns>Результат сравнения.</returns>
 		public override int CompareTo(IIndicatorValue other)
 		{
 			throw new NotSupportedException();

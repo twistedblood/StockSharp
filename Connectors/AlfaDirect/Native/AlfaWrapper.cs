@@ -228,9 +228,9 @@ namespace StockSharp.AlfaDirect.Native
 			var secCode = message.SecurityId.SecurityCode;
 			var account = message.PortfolioName.AccountFromPortfolioName(); // Портфель
 			var placeCode = _adapter.SecurityClassInfo.GetSecurityClass(message.SecurityType, message.SecurityId.BoardCode);
-			var endDate = (message.TillDate == null || message.TillDate == DateTimeOffset.MaxValue
-				? marketTime.Date.AddTicks(new TimeSpan(23, 55, 00).Ticks)
-				: message.TillDate.Value).ToLocalTime(TimeHelper.Moscow); // Срок действия поручения.
+			var endDate = message.TillDate == null || message.TillDate == DateTimeOffset.MaxValue
+				? marketTime.Date + TimeHelper.LessOneDay
+				: message.TillDate.Value.ToLocalTime(TimeHelper.Moscow); // Срок действия поручения.
 			var maxEndDate = DateTime.Now + TimeSpan.FromDays(365);
 			if (endDate > maxEndDate)
 				endDate = maxEndDate;
@@ -327,6 +327,9 @@ namespace StockSharp.AlfaDirect.Native
 
 		public void LookupCandles(MarketDataMessage message)
 		{
+			if (message.From == null || message.To == null)
+				throw new ArgumentException("message");
+
 			var placeCode = _adapter.SecurityClassInfo.GetSecurityClass(message.SecurityType, message.SecurityId.BoardCode);
 			_adapter.AddDebugLog("Candles SC={0} PC={1} TF={2} F={3} T={4}", message.SecurityId.SecurityCode, placeCode, message.Arg, message.From, message.To);
 
@@ -336,7 +339,7 @@ namespace StockSharp.AlfaDirect.Native
 			var timeFrame = (AlfaTimeFrames)(TimeSpan)message.Arg;
 			//to = timeFrame.GetCandleBounds(series.Security).Min;
 
-			var data = _ad.GetArchiveFinInfoFromDB(placeCode, message.SecurityId.SecurityCode, timeFrame.Interval, message.From.ToLocalTime(TimeHelper.Moscow), message.To.ToLocalTime(TimeHelper.Moscow));
+			var data = _ad.GetArchiveFinInfoFromDB(placeCode, message.SecurityId.SecurityCode, timeFrame.Interval, message.From.Value.ToLocalTime(TimeHelper.Moscow), message.To.Value.ToLocalTime(TimeHelper.Moscow));
 
 			if (_ad.LastResult != StateCodes.stcSuccess)
 				ThrowInError((tagStateCodes)_ad.LastResult);

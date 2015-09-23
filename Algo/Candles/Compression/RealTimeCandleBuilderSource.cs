@@ -160,7 +160,7 @@ namespace StockSharp.Algo.Candles.Compression
 		}
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>
@@ -171,7 +171,7 @@ namespace StockSharp.Algo.Candles.Compression
 
 			var trades = GetSecurityValues(series.Security);
 
-			yield return new Range<DateTimeOffset>(trades.IsEmpty() ? Connector.CurrentTime : trades.Min(v => v.Time).LocalDateTime, DateTimeOffset.MaxValue);
+			yield return new Range<DateTimeOffset>(trades.IsEmpty() ? Connector.CurrentTime : trades.Min(v => v.Time), DateTimeOffset.MaxValue);
 		}
 
 		/// <summary>
@@ -228,7 +228,7 @@ namespace StockSharp.Algo.Candles.Compression
 		}
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>

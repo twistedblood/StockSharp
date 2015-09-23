@@ -245,6 +245,7 @@ namespace StockSharp.Algo
 		/// <summary>
 		/// Количество тиковых сделок для хранения. 
 		/// По умолчанию равно 100000. Если значение установлено в -1, то сделки не будут удаляться.
+		/// Если значение установлено в 0, то сделки не будут сохраняться.
 		/// </summary>
 		public int TradesKeepCount
 		{
@@ -255,6 +256,7 @@ namespace StockSharp.Algo
 		/// <summary>
 		/// Количество заявок для хранения. 
 		/// По умолчанию равно 1000. Если значение установлено в -1, то заявки не будут удаляться.
+		/// Если значение установлено в 0, то заявки не будут сохраняться.
 		/// </summary>
 		public int OrdersKeepCount
 		{
@@ -302,7 +304,7 @@ namespace StockSharp.Algo
 
 		/// <summary>
 		/// Список всех загруженных инструментов.
-		/// Вызывать необходимо после того, как пришло событие <see cref="IConnector.NewSecurities" />. Иначе будет возвращено постое множество.
+		/// Вызывать необходимо после того, как пришло событие <see cref="IConnector.NewSecurities" />. Иначе будет возвращено пустое множество.
 		/// </summary>
 		public virtual IEnumerable<Security> Securities
 		{
@@ -497,19 +499,6 @@ namespace StockSharp.Algo
 		[DescriptionLoc(LocalizedStrings.Str198Key)]
 		public bool CreateAssociatedSecurity { get; set; }
 
-		private string _associatedBoardCode = "ALL";
-
-		/// <summary>
-		/// Код площадки для объединенного инструмента. По-умолчанию равно ALL.
-		/// </summary>
-		[DisplayNameLoc(LocalizedStrings.AssociatedSecurityBoardKey)]
-		[DescriptionLoc(LocalizedStrings.Str199Key)]
-		public string AssociatedBoardCode
-		{
-			get { return _associatedBoardCode; }
-			set { _associatedBoardCode = value; }
-		}
-
 		/// <summary>
 		/// Число ошибок, переданное через событие <see cref="Error"/>.
 		/// </summary>
@@ -607,7 +596,10 @@ namespace StockSharp.Algo
 
 			foreach (var adapter in Adapter.InnerAdapters.SortedAdapters)
 			{
-				_adapterStates[adapter] = ConnectionStates.Disconnecting;
+				var prevState = _adapterStates.TryGetValue2(adapter);
+
+				if (prevState != ConnectionStates.Failed)
+					_adapterStates[adapter] = ConnectionStates.Disconnecting;
 			}
 
 			_subscriptionManager.Stop();
@@ -885,7 +877,7 @@ namespace StockSharp.Algo
 
 				while (cs != null)
 				{
-					order.Security = cs.GetSecurity(order.Security.ToExchangeTime(CurrentTime));
+					order.Security = cs.GetSecurity(CurrentTime);
 					cs = order.Security as ContinuousSecurity;
 				}
 
@@ -1141,7 +1133,7 @@ namespace StockSharp.Algo
 			order.Connector = this;
 
 			if (order.Security is ContinuousSecurity)
-				order.Security = ((ContinuousSecurity)order.Security).GetSecurity(order.Security.ToExchangeTime(CurrentTime));
+				order.Security = ((ContinuousSecurity)order.Security).GetSecurity(CurrentTime);
 
 			order.LocalTime = CurrentTime.LocalDateTime;
 			order.State = OrderStates.Pending;
@@ -1220,11 +1212,11 @@ namespace StockSharp.Algo
 		/// <summary>
 		/// Отменить группу заявок на бирже по фильтру.
 		/// </summary>
-		/// <param name="isStopOrder"><see langword="true"/>, если нужно отменить только стоп-заявки, false - если только обычный и null - если оба типа.</param>
-		/// <param name="portfolio">Портфель. Если значение равно null, то портфель не попадает в фильтр снятия заявок.</param>
-		/// <param name="direction">Направление заявки. Если значение равно null, то направление не попадает в фильтр снятия заявок.</param>
-		/// <param name="board">Торговая площадка. Если значение равно null, то площадка не попадает в фильтр снятия заявок.</param>
-		/// <param name="security">Инструмент. Если значение равно null, то инструмент не попадает в фильтр снятия заявок.</param>
+		/// <param name="isStopOrder"><see langword="true"/>, если нужно отменить только стоп-заявки, <see langword="false"/> - если только обычный и <see langword="null"/> - если оба типа.</param>
+		/// <param name="portfolio">Портфель. Если значение равно <see langword="null"/>, то портфель не попадает в фильтр снятия заявок.</param>
+		/// <param name="direction">Направление заявки. Если значение равно <see langword="null"/>, то направление не попадает в фильтр снятия заявок.</param>
+		/// <param name="board">Торговая площадка. Если значение равно <see langword="null"/>, то площадка не попадает в фильтр снятия заявок.</param>
+		/// <param name="security">Инструмент. Если значение равно <see langword="null"/>, то инструмент не попадает в фильтр снятия заявок.</param>
 		public void CancelOrders(bool? isStopOrder = null, Portfolio portfolio = null, Sides? direction = null, ExchangeBoard board = null, Security security = null)
 		{
 			var transactionId = TransactionIdGenerator.GetNextId();
@@ -1236,11 +1228,11 @@ namespace StockSharp.Algo
 		/// Отменить группу заявок на бирже по фильтру.
 		/// </summary>
 		/// <param name="transactionId">Идентификатор транзакции отмены.</param>
-		/// <param name="isStopOrder"><see langword="true"/>, если нужно отменить только стоп-заявки, false - если только обычный и null - если оба типа.</param>
-		/// <param name="portfolio">Портфель. Если значение равно null, то портфель не попадает в фильтр снятия заявок.</param>
-		/// <param name="direction">Направление заявки. Если значение равно null, то направление не попадает в фильтр снятия заявок.</param>
-		/// <param name="board">Торговая площадка. Если значение равно null, то площадка не попадает в фильтр снятия заявок.</param>
-		/// <param name="security">Инструмент. Если значение равно null, то инструмент не попадает в фильтр снятия заявок.</param>
+		/// <param name="isStopOrder"><see langword="true"/>, если нужно отменить только стоп-заявки, <see langword="false"/> - если только обычный и <see langword="null"/> - если оба типа.</param>
+		/// <param name="portfolio">Портфель. Если значение равно <see langword="null"/>, то портфель не попадает в фильтр снятия заявок.</param>
+		/// <param name="direction">Направление заявки. Если значение равно <see langword="null"/>, то направление не попадает в фильтр снятия заявок.</param>
+		/// <param name="board">Торговая площадка. Если значение равно <see langword="null"/>, то площадка не попадает в фильтр снятия заявок.</param>
+		/// <param name="security">Инструмент. Если значение равно <see langword="null"/>, то инструмент не попадает в фильтр снятия заявок.</param>
 		protected virtual void OnCancelOrders(long transactionId, bool? isStopOrder = null, Portfolio portfolio = null, Sides? direction = null, ExchangeBoard board = null, Security security = null)
 		{
 			var cancelMsg = MessageConverterHelper.CreateGroupCancelMessage(transactionId, isStopOrder, portfolio, direction, board, security == null ? default(SecurityId) : GetSecurityId(security), security);
@@ -1336,7 +1328,7 @@ namespace StockSharp.Algo
 			if (isNew)
 			{
 				if (security.Board == null)
-					throw new InvalidOperationException(LocalizedStrings.Str1103Params.Put(id));
+					throw new InvalidOperationException(LocalizedStrings.Str903Params.Put(id));
 
 				_exchangeBoards.TryAdd(security.Board);
 				RaiseNewSecurities(new[] { security });
@@ -1632,7 +1624,6 @@ namespace StockSharp.Algo
 			MarketTimeChangedInterval = storage.GetValue<TimeSpan>("MarketTimeChangedInterval");
 
 			CreateAssociatedSecurity = storage.GetValue("CreateAssociatedSecurity", CreateAssociatedSecurity);
-			AssociatedBoardCode = storage.GetValue("AssociatedBoardCode", AssociatedBoardCode);
 
 			base.Load(storage);
 		}
@@ -1661,7 +1652,6 @@ namespace StockSharp.Algo
 			storage.SetValue("MarketTimeChangedInterval", MarketTimeChangedInterval);
 
 			storage.SetValue("CreateAssociatedSecurity", CreateAssociatedSecurity);
-			storage.SetValue("AssociatedBoardCode", AssociatedBoardCode);
 
 			base.Save(storage);
 		}

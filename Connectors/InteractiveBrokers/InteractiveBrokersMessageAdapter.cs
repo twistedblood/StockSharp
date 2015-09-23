@@ -40,7 +40,7 @@ namespace StockSharp.InteractiveBrokers
 		/// <summary>
 		/// Создать для заявки типа <see cref="OrderTypes.Conditional"/> условие, которое поддерживается подключением.
 		/// </summary>
-		/// <returns>Условие для заявки. Если подключение не поддерживает заявки типа <see cref="OrderTypes.Conditional"/>, то будет возвращено null.</returns>
+		/// <returns>Условие для заявки. Если подключение не поддерживает заявки типа <see cref="OrderTypes.Conditional"/>, то будет возвращено <see langword="null"/>.</returns>
 		public override OrderCondition CreateOrderCondition()
 		{
 			return new IBOrderCondition();
@@ -99,9 +99,9 @@ namespace StockSharp.InteractiveBrokers
 		//	base.SendOutMessage(message);
 		//}
 
-		private static string GetBoardCode(string boardCode)
+		private string GetBoardCode(string boardCode)
 		{
-			return boardCode.IsEmpty() ? "IBRKS" : boardCode;
+			return boardCode.IsEmpty() ? AssociatedBoardCode : boardCode;
 		}
 
 		/// <summary>
@@ -192,8 +192,13 @@ namespace StockSharp.InteractiveBrokers
 							if (!ExtraAuth)
 							{
 								_socket.Send((int)RequestMessages.StartApi);
-								_socket.Send((int)ServerVersions.V1);
+								_socket.Send((int)ServerVersions.V2);
 								_socket.Send(ClientId);
+
+								if (_socket.ServerVersion >= ServerVersions.V72)
+								{
+									_socket.Send(OptionalCapabilities);
+								}
 							}
 						}
 						else
@@ -341,7 +346,7 @@ namespace StockSharp.InteractiveBrokers
 					// http://www.interactivebrokers.com/en/software/api/apiguide/java/currenttime.htm
 
 					var time = socket.ReadLongDateTime();
-					OnProcessTimeShift(TimeHelper.Now - time);
+					OnProcessTimeShift(TimeHelper.NowWithOffset - time);
 
 					break;
 				}

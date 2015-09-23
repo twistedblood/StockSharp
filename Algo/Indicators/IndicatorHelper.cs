@@ -94,11 +94,23 @@ namespace StockSharp.Algo.Indicators
 		/// </summary>
 		/// <param name="indicator">Индикатор.</param>
 		/// <param name="value">Числовое значение.</param>
-		/// <param name="isFinal">Является ли значение окончательным (индикатор окончательно формирует свое значение и более не будет изменяться в данной точке времени). По-умолчанию true.</param>
+		/// <param name="isFinal">Является ли значение окончательным (индикатор окончательно формирует свое значение и более не будет изменяться в данной точке времени). По-умолчанию <see langword="true"/>.</param>
 		/// <returns>Новое значение индикатора.</returns>
 		public static IIndicatorValue Process(this IIndicator indicator, decimal value, bool isFinal = true)
 		{
 			return indicator.Process(new DecimalIndicatorValue(indicator, value) { IsFinal = isFinal });
+		}
+
+		/// <summary>
+		/// Обновить индикатор числовой парой.
+		/// </summary>
+		/// <param name="indicator">Индикатор.</param>
+		/// <param name="value">Пара значений.</param>
+		/// <param name="isFinal">Является ли пара окончательной (индикатор окончательно формирует свое значение и более не будет изменяться в данной точке времени). По-умолчанию <see langword="true"/>.</param>
+		/// <returns>Новое значение индикатора.</returns>
+		public static IIndicatorValue Process<TValue>(this IIndicator indicator, Tuple<TValue, TValue> value, bool isFinal = true)
+		{
+			return indicator.Process(new PairIndicatorValue<TValue>(indicator, value) { IsFinal = isFinal });
 		}
 
 		internal static void LoadNotNull(this IPersistable obj, SettingsStorage settings, string name)

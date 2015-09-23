@@ -1,5 +1,113 @@
 StockSharp API Change log
 ========================
+###v4.3.12:
+* (feature) Correlation indicator.
+* (feature) Covariance indicator.
+* (feature) Chart.TimeZone
+* (feature) Oanda + BitStamp. Control error count.
+* (feature) WpfToolkit 2.5.0
+* (bug) FixServer. Error handling fix.
+* (bug) Fix http://stocksharp.com/forum/yaf_postst5724_QuikLua--System-InvalidOperationException-pri-poluchienii-ordierov-biez-transactionId.aspx
+* (feature) Plaza. CGate router 1.3.12.5
+* (bug) YahooHistorySource fix
+* (feature) Interactive Brokers. 9.72
+* (feature) Backtesting on level1.
+
+###v4.3.11:
+* (feature) CSV storage. Time zone.
+* (feature) Transaq. v2.16.1
+* (feature) level1 -> depths.
+* (feature) MarketDataMessage. Nullable fields.
+* (bug) DateTime to DateTimeOffset casting fix.
+* (feature) CSV storage perf improve.
+* (bug) BasketMessageAdapter. Subscription fix.
+* (feature) Storage (bin). Allow different time zones.
+* (feature) FIX connector. TimeSpan -> TimeZoneInfo.
+* (feature) SecurityGrid. TimeZone column
+* (bug) Connector. Unsubscription fixes.
+* (feature) CandleManager. Priority source switch in runtime.
+* (feature) SmartCOM. Extended quote price check.
+* (feature) Plaza. Multi connections.
+* (feature) Storage. Volume-less ticks support.
+* (feature) SampleHistoryTesting. ES mini test.
+* (bug) ChartPanel.Save fix.
+* (feature) Leve1 -> Ticks + Candles.
+* (bug) Quik lua. Fix zero transaction id.
+* (feature) ILogListener. Implements IDisposable
+* (bug) IQFeed. Candle timezone fix.
+* (bug) NewsSerializer fix.
+* (feature) NewsGrid. Request story + open url.
+* (bug) IQFeed. News fixes.
+* (bug) Lmax, IQFeed, IB. Tick subscription fix.
+* (feature) MarketEmulator. Fill server time.
+* (feature) IQFeed. COMM3 security type.
+* (feature) SampleRealTimeEmulation. Look up securities.
+* (feature) SampleRealTimeEmulation. IQFeed support.
+* (bug) TraderHelper.ToDecimal fix.
+
+###v4.3.10
+* (bug) Storage. Level1 fix.
+* (bug) ITCH. Fixes.
+* (feature) HistoryEmulationConnector refactoring.
+* (feature) History emulation. Support all candle types.
+* (bug) LocalMarketDataDrive.Dates fix.
+* (feature) Candles history update.
+* (feature) Real time emulation refactoring.
+* (bug) Fix https://github.com/StockSharp/StockSharp/issues/88
+* (feature) CurrencyTypes.GHS
+* (bug) BlackScholes fixes.
+* (bug) CsvMarketDataSerializer. Fix BOM char.
+* (feature) Grids. TimeZone column
+* (bug) FIX connector. Fix ExecMsg.ServerTime
+* (feature) HelpButton.
+* (feature) IOrderLogMarketDepthBuilder.
+* (feature) IpAddressEditor.
+* (feature) AdvertisePanel.
+
+###v4.3.9.1:
+* (feature) Candle.RelativeVolume is nullable.
+* (feature) Candle. Ticks fields are nullable.
+* (feature) CandleSerializer. Ticks fields.
+
+###v4.3.9:
+* (bug) RecoveryFactorParameter fix.
+* (bug) OrderLogMarketDepthBuilder fix.
+* (feature) Algo.Storages.Backup - clients for cloud storage backup services.
+* (feature) FIX connector. More level1 fields support.
+* (feature) LicenseHelper.LicenseError
+* (feature) Connector. Not track ticks option.
+
+###v4.3.8:
+* (feature) ITCH connector.
+* (bug) FIX connector and FixServer. Many fixes.
+* (bug) CSV storage fix.
+* (bug) Excel export boost.
+* (bug) Storage. Fix delete range.
+* (bug) TargetPlatformWindow fix.
+* (feature) BarChart connector (history mode).
+* (feature) SampleLogging. New sample.
+* (feature) CandleStates. Started + Changed -> Active.
+* (feature) OrderWindow. Set default price and volume.
+* (feature) ExecutionMessage.ClientCode
+* (feature) MyTradeGrid, OrderGrid and OrderWindow. Display ClientCode.
+* (feature) Order, Trade, MarketDepth. New field Currency.
+* (feature) FilterableSecurityProvider. Indexing Security.ExternalId
+* (feature) PF combo. Insert unknown portfolio.
+* (feature) OrderCancelMessage. New field Side.
+* (bug) Connector. Fix overflow.
+* (bug) SampleSmartCandles. Fix
+* (feature) ExternalCandleSource.Stopped event.
+* (feature) TraceSource
+* (bug) LogManager. FlushInterval lower bound check fix.
+* (feature) SampleHistoryTesting. Order book emulation option.
+* (feature) Blackwood. 3.1.9
+* (feature) Currency. GBX
+* (feature) Storage. Date cache bin->txt format.
+* (bug) CSV storage. Fix save NewsMessage.SecurityId.
+* (bug) CSV storage. Fix append data with same time for order log and tick trades.
+* (feature) FIX connector. ExecMsg.ClientCode.
+* (feature) FIX connector. Read/write timeouts.
+
 ###v4.3.7:
 * (feature) MessageDirections. Removed.
 * (feature) Connector. OnRegisterXXX OnUnRegisterXXX removed.

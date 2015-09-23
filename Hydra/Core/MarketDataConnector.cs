@@ -3,6 +3,7 @@ namespace StockSharp.Hydra.Core
 	using System;
 	using System.Collections.Generic;
 	using System.Linq;
+	using System.Runtime.ExceptionServices;
 
 	using Ecng.Collections;
 	using Ecng.Common;
@@ -279,9 +280,9 @@ namespace StockSharp.Hydra.Core
 		{
 			if (LastError != null)
 			{
-				var copy = LastError;
+				var error = LastError;
 				LastError = null;
-				throw copy;
+				error.Throw();
 			}
 		}
 

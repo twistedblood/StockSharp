@@ -15,31 +15,47 @@ namespace StockSharp.Algo.Storages
 	using Ecng.Reflection.Path;
 	using Ecng.Serialization;
 
+	using SmartFormat;
+	using SmartFormat.Core.Formatting;
+
 	using StockSharp.Messages;
 	using StockSharp.Localization;
 
-	class CsvMarketDataSerializer<TData> : IMarketDataSerializer<TData>
+	/// <summary>
+	/// Сериализатор в формате CSV.
+	/// </summary>
+	/// <typeparam name="TData">Тип данных.</typeparam>
+	public class CsvMarketDataSerializer<TData> : IMarketDataSerializer<TData>
 	{
-		class CsvMetaInfo : MetaInfo<CsvMetaInfo>
+		class CsvMetaInfo : MetaInfo
 		{
-			private readonly Encoding _encoding;
+			//private readonly Encoding _encoding;
+			private readonly Func<string[], object> _toId;
 
-			public CsvMetaInfo(DateTime date, Encoding encoding)
+			public CsvMetaInfo(DateTime date, /*Encoding encoding,*/ Func<string[], object> toId)
 				: base(date)
 			{
-				_encoding = encoding;
+				//_encoding = encoding;
+				_toId = toId;
 			}
 
-			public override CsvMetaInfo Clone()
+			//public override CsvMetaInfo Clone()
+			//{
+			//	return new CsvMetaInfo(Date, _encoding, _toId)
+			//	{
+			//		Count = Count,
+			//		FirstTime = FirstTime,
+			//		LastTime = LastTime,
+			//		PriceStep = PriceStep,
+			//		VolumeStep = VolumeStep,
+			//	};
+			//}
+
+			private object _lastId;
+
+			public override object LastId
 			{
-				return new CsvMetaInfo(Date, _encoding)
-				{
-					Count = Count,
-					FirstTime = FirstTime,
-					LastTime = LastTime,
-					PriceStep = PriceStep,
-					VolumeStep = VolumeStep,
-				};
+				get { return _lastId; }
 			}
 
 			public override void Write(Stream stream)
@@ -67,8 +83,11 @@ namespace StockSharp.Algo.Storages
 
 					if (firstLine != null)
 					{
-						FirstTime = ParseTime(firstLine.Split(';')[0], Date).UtcDateTime;
-						LastTime = ParseTime(lastLine.Split(';')[0], Date).UtcDateTime;
+						FirstTime = ParseTime(firstLine.Split(';'), Date).UtcDateTime;
+						LastTime = ParseTime(lastLine.Split(';'), Date).UtcDateTime;
+
+						if (_toId != null)
+							_lastId = _toId(lastLine.Split(';'));
 					}
 
 					stream.Position = 0;
@@ -83,9 +102,10 @@ namespace StockSharp.Algo.Storages
 			private readonly SecurityId _securityId;
 			private readonly DateTime _date;
 			private readonly ExecutionTypes? _executionType;
+			private readonly object _candleArg;
 			private readonly MemberProxy[] _members;
 
-			public CsvReader(Stream stream, Encoding encoding, SecurityId securityId, DateTime date, ExecutionTypes? executionType, MemberProxy[] members)
+			public CsvReader(Stream stream, Encoding encoding, SecurityId securityId, DateTime date, ExecutionTypes? executionType, object candleArg, MemberProxy[] members)
 			{
 				if (stream == null)
 					throw new ArgumentNullException("stream");
@@ -95,6 +115,7 @@ namespace StockSharp.Algo.Storages
 				_securityId = securityId;
 				_date = date.ChangeKind(DateTimeKind.Utc);
 				_executionType = executionType;
+				_candleArg = candleArg;
 				_members = members;
 			}
 
@@ -113,22 +134,23 @@ namespace StockSharp.Algo.Storages
 
 					var item = _ctor.Ctor(null);
 
-					var time = ParseTime(parts[0], _date);
+					var time = ParseTime(parts, _date);
 
 					if (_isLevel1)
 					{
 						var l1 = item.To<Level1ChangeMessage>();
 
 						l1.ServerTime = time;
+						l1.SecurityId = _securityId;
 
-						for (var i = 1; i < parts.Length; i++)
+						for (var i = _skipColumns; i < parts.Length; i++)
 						{
 							var part = parts[i];
 
 							if (part.IsEmpty())
 								continue;
 
-							var field = _level1Fields[i - 1];
+							var field = _level1Fields[i - _skipColumns];
 							object value;
 
 							switch (field)
@@ -136,7 +158,7 @@ namespace StockSharp.Algo.Storages
 								case Level1Fields.BestAskTime:
 								case Level1Fields.BestBidTime:
 								case Level1Fields.LastTradeTime:
-									value = ParseTime(part, _date);
+									value = part.To<DateTimeOffset>();
 									break;
 								case Level1Fields.AsksCount:
 								case Level1Fields.BidsCount:
@@ -168,12 +190,17 @@ namespace StockSharp.Algo.Storages
 					{
 						_dateMember.SetValue(item, time);
 
-						for (var i = 1; i < parts.Length; i++)
+						for (var i = _skipColumns; i < parts.Length; i++)
 						{
 							if (parts[i].IsEmpty())
 								continue;
 
-							_members[i].SetValue(item, parts[i].To(_members[i].ReturnType));
+							var member = _members[i - _skipColumns];
+
+							if (_isNews && i == 7)
+								member.SetValue(item, new SecurityId { SecurityCode = parts[i] });
+							else
+								member.SetValue(item, parts[i].To(member.ReturnType));
 						}
 
 						if (_setSecurityId != null)
@@ -181,7 +208,9 @@ namespace StockSharp.Algo.Storages
 
 						if (_executionType != null)
 							_setExecutionType.SetValue(item, _executionType.Value);
-	
+
+						if (_candleArg != null)
+							_setCandleArg.SetValue(item, _candleArg);
 					}
 					
 					return item;
@@ -208,70 +237,106 @@ namespace StockSharp.Algo.Storages
 		// ReSharper disable StaticFieldInGenericType
 		private static readonly MemberProxy _setSecurityId;
 		private static readonly MemberProxy _setExecutionType;
+		private static readonly MemberProxy _setCandleArg;
 		private static readonly FastInvoker<VoidType, VoidType, TData> _ctor;
-		private const string _timeFormatMcs = "HHmmssffffff zzz";
-		private const string _timeFormatSec = "HHmmss zzz";
-		private static readonly string _timeFormat;
+		private const string _timeFormat = "HHmmssfff";
 		private static readonly SynchronizedDictionary<Tuple<Type, ExecutionTypes?>, MemberProxy[]> _info = new SynchronizedDictionary<Tuple<Type, ExecutionTypes?>, MemberProxy[]>();
 		private static readonly bool _isLevel1 = typeof(TData) == typeof(Level1ChangeMessage);
+		private static readonly bool _isNews = typeof(TData) == typeof(NewsMessage);
+		private static readonly bool _isQuotes = typeof(TData) == typeof(QuoteChangeMessage);
 		private static readonly Level1Fields[] _level1Fields = _isLevel1 ? Enumerator.GetValues<Level1Fields>().Where(l1 => l1 != Level1Fields.ExtensionInfo && l1 != Level1Fields.BestAsk && l1 != Level1Fields.BestBid && l1 != Level1Fields.LastTrade).OrderBy(l1 => (int)l1).ToArray() : null;
 		private static readonly MemberProxy _dateMember;
+		private static readonly UTF8Encoding _utf = new UTF8Encoding(false);
+		private const int _skipColumns = 2;
 		// ReSharper restore StaticFieldInGenericType
 
 		static CsvMarketDataSerializer()
 		{
-			_timeFormat = GetTimeFormat();
+			var isCandles = typeof(TData).IsSubclassOf(typeof(CandleMessage));
 
-			if (typeof(TData) == typeof(ExecutionMessage) || typeof(TData).IsSubclassOf(typeof(CandleMessage)))
+			if (typeof(TData) == typeof(ExecutionMessage) || isCandles)
 				_setSecurityId = MemberProxy.Create(typeof(TData), "SecurityId");
 
 			if (typeof(TData) == typeof(ExecutionMessage))
 				_setExecutionType = MemberProxy.Create(typeof(TData), "ExecutionType");
 
+			if (isCandles)
+				_setCandleArg = MemberProxy.Create(typeof(TData), "Arg");
+
 			_ctor = FastInvoker<VoidType, VoidType, TData>.Create(typeof(TData).GetMember<ConstructorInfo>());
 
-			_dateMember = MemberProxy.Create(typeof(TData),
-				typeof(TData).IsSubclassOf(typeof(CandleMessage)) ? "OpenTime" : "ServerTime");
+			_dateMember = MemberProxy.Create(typeof(TData), isCandles ? "OpenTime" : "ServerTime");
 		}
 
 		private readonly Encoding _encoding;
 		private readonly ExecutionTypes? _executionType;
+		private readonly object _candleArg;
 		private readonly string _format;
 		private readonly MemberProxy[] _members;
+		private readonly Func<string[], object> _toId;
+		private FormatCache _templateCache;
 
+		/// <summary>
+		/// Создать <see cref="CsvMarketDataSerializer{TData}"/>.
+		/// </summary>
+		/// <param name="encoding">Кодировка.</param>
 		public CsvMarketDataSerializer(Encoding encoding = null)
 			: this(default(SecurityId), null, encoding)
 		{
 		}
 
-		public CsvMarketDataSerializer(SecurityId securityId, ExecutionTypes? executionType, Encoding encoding = null)
+		/// <summary>
+		/// Создать <see cref="CsvMarketDataSerializer{TData}"/>.
+		/// </summary>
+		/// <param name="securityId">Идентификатор инструмента.</param>
+		/// <param name="executionType">Тип исполнения.</param>
+		/// <param name="candleArg">Параметр свечи.</param>
+		/// <param name="encoding">Кодировка.</param>
+		public CsvMarketDataSerializer(SecurityId securityId, ExecutionTypes? executionType = null, object candleArg = null, Encoding encoding = null)
 		{
-			if (securityId.IsDefault() && typeof(TData) != typeof(NewsMessage))
+			if (securityId.IsDefault() && !_isNews)
 				throw new ArgumentNullException("securityId");
 
 			SecurityId = securityId;
 			_executionType = executionType;
-			_encoding = encoding ?? Encoding.UTF8;
+			_candleArg = candleArg;
+			_encoding = encoding ?? _utf;
 
-			if (typeof(TData) == typeof(QuoteChangeMessage))
+			if (_isQuotes)
 				return;
 
-			_format = GetFormat(executionType).Put(_timeFormat);
-
-			var timeFormat = ":" + _timeFormat;
+			_format = GetFormat(executionType).Replace(":{0}", ".UtcDateTime:" + _timeFormat);
 
 			if (_isLevel1)
 				return;
 
+			const string timeFormat = ":" + _timeFormat;
+
 			_members = _info.SafeAdd(Tuple.Create(typeof(TData), executionType), key =>
 				_format
 					.Split(';')
+					.Skip(_skipColumns)
 					.Select(s =>
 						MemberProxy.Create(typeof(TData),
 							s.Substring(1, s.Length - 2).Replace(timeFormat, string.Empty)))
+					.Concat(_isNews ? new[] { MemberProxy.Create(typeof(TData), "SecurityId") } : Enumerable.Empty<MemberProxy>())
 					.ToArray());
+
+			if (typeof(TData) == typeof(ExecutionMessage))
+			{
+				switch (executionType)
+				{
+					case ExecutionTypes.Tick:
+					case ExecutionTypes.OrderLog:
+						_toId = lines => lines[_skipColumns].To<long>();
+						break;
+				}
+			}
 		}
 
+		/// <summary>
+		/// Идентификатор инструмента.
+		/// </summary>
 		public SecurityId SecurityId { get; private set; }
 
 		private static string GetFormat(ExecutionTypes? executionType)
@@ -281,9 +346,9 @@ namespace StockSharp.Algo.Storages
 				switch (executionType)
 				{
 					case ExecutionTypes.Tick:
-						return "{{ServerTime:{0}}};{{TradeId}};{{TradePrice}};{{Volume}};{{OriginSide}};{{OpenInterest}}";
+						return "{ServerTime:{0}};{ServerTime:zzz};{TradeId};{TradePrice};{Volume};{OriginSide};{OpenInterest};{IsSystem}";
 					case ExecutionTypes.OrderLog:
-						return "{{ServerTime:{0}}};{{IsSystem}};{{OrderId}};{{Price}};{{Volume}};{{Side}};{{OrderState}};{{TimeInForce}};{{TradeId}};{{TradePrice}};{{PortfolioName}}";
+						return "{ServerTime:{0}};{ServerTime:zzz};{TransactionId};{OrderId};{Price};{Volume};{Side};{OrderState};{TimeInForce};{TradeId};{TradePrice};{PortfolioName};{IsSystem}";
 					case null:
 						throw new ArgumentNullException("executionType");
 					default:
@@ -292,56 +357,54 @@ namespace StockSharp.Algo.Storages
 			}
 			
 			if (typeof(TData) == typeof(TimeQuoteChange))
-				return "{{ServerTime:{0}}};{{Price}};{{Volume}};{{Side}}";
+				return "{ServerTime:{0}};{ServerTime:zzz};{Price};{Volume};{Side}";
 
 			if (typeof(TData) == typeof(Level1ChangeMessage))
 			{
 				var fields = _level1Fields.Select(s =>
 				{
-					string time = null;
+					//string time = null;
 
-					switch (s)
-					{
-						case Level1Fields.BestAskTime:
-						case Level1Fields.BestBidTime:
-						case Level1Fields.LastTradeTime:
-							time = ":" + _timeFormatMcs;
-							break;
-					}
+					//switch (s)
+					//{
+					//	case Level1Fields.BestAskTime:
+					//	case Level1Fields.BestBidTime:
+					//	case Level1Fields.LastTradeTime:
+					//		time = ".UtcDateTime:" + _timeFormat;
+					//		break;
+					//}
 
-					return "{" + s + time + "}";
+					return "{" + s + "}";
 				}).Join(";");
 
-				return "{{ServerTime:{0}}};" + "{{Changes:{0}}}".Put(fields);
+				return "{ServerTime:{0}};{ServerTime:zzz};" + "{{Changes:{0}}}".Put(fields);
 			}
 
 			if (typeof(TData).IsSubclassOf(typeof(CandleMessage)))
-				return "{{OpenTime:{0}}};{{OpenPrice}};{{HighPrice}};{{LowPrice}};{{ClosePrice}};{{TotalVolume}}";
+				return "{OpenTime:{0}};{OpenTime:zzz};{OpenPrice};{HighPrice};{LowPrice};{ClosePrice};{TotalVolume}";
 
 			if (typeof(TData) == typeof(NewsMessage))
 			{
 				// NewsMessage.Story do not supported
-				// TODO ;{{SecurityId.Value.SecurityCode}}
-				return "{{ServerTime:{0}}};{{Headline}};{{Source}};{{Url}};{{Id}};{{BoardCode}}";
+				return "{ServerTime:{0}};{ServerTime:zzz};{Headline};{Source};{Url};{Id};{BoardCode}";
 			}
 
 			throw new InvalidOperationException(LocalizedStrings.Str888Params.Put(typeof(TData).Name));
 		}
 
-		private static string GetTimeFormat()
-		{
-			return (typeof(TData).IsSubclassOf(typeof(CandleMessage)) || typeof(TData) == typeof(NewsMessage))
-				? _timeFormatSec : _timeFormatMcs;
-		}
-
+		/// <summary>
+		/// Создать пустую мета-информацию.
+		/// </summary>
+		/// <param name="date">Дата.</param>
+		/// <returns>Мета-информация о данных за один день.</returns>
 		public virtual IMarketDataMetaInfo CreateMetaInfo(DateTime date)
 		{
-			return new CsvMetaInfo(date, _encoding);
+			return new CsvMetaInfo(date, _toId);
 		}
 
-		byte[] IMarketDataSerializer.Serialize(IEnumerable data, IMarketDataMetaInfo metaInfo)
+		void IMarketDataSerializer.Serialize(Stream stream, IEnumerable data, IMarketDataMetaInfo metaInfo)
 		{
-			return Serialize(data.Cast<TData>(), metaInfo);
+			Serialize(stream, data.Cast<TData>(), metaInfo);
 		}
 
 		IEnumerableEx IMarketDataSerializer.Deserialize(Stream stream, IMarketDataMetaInfo metaInfo)
@@ -349,28 +412,52 @@ namespace StockSharp.Algo.Storages
 			return Deserialize(stream, metaInfo);
 		}
 
-		public virtual byte[] Serialize(IEnumerable<TData> data, IMarketDataMetaInfo metaInfo)
+		/// <summary>
+		/// Преобразовать данные в поток байтов.
+		/// </summary>
+		/// <param name="stream">Поток данных.</param>
+		/// <param name="data">Данные.</param>
+		/// <param name="metaInfo">Мета-информация о данных за один день.</param>
+		public virtual void Serialize(Stream stream, IEnumerable<TData> data, IMarketDataMetaInfo metaInfo)
 		{
-			return CultureInfo.InvariantCulture.DoInCulture(() =>
+			CultureInfo.InvariantCulture.DoInCulture(() =>
 			{
-				var sb = new StringBuilder();
+				var writer = new StreamWriter(stream, _encoding);
 
 				var appendLine = metaInfo.Count > 0;
 
 				foreach (var item in data)
 				{
 					if (appendLine)
-						sb.AppendLine();
+						writer.WriteLine();
 					else
 						appendLine = true;
 
-					sb.Append(_format.PutEx(item));
+					//writer.Write(_format.PutEx(item));
+					writer.Write(Smart.Default.FormatWithCache(ref _templateCache, _format, item));
+
+					var news = item as NewsMessage;
+					if (news == null)
+						continue;
+
+					writer.Write(";");
+
+					writer.Write(
+						news.SecurityId == null
+							? null
+							: news.SecurityId.Value.SecurityCode);
 				}
 
-				return _encoding.GetBytes(sb.ToString());
+				writer.Flush();
 			});
 		}
 
+		/// <summary>
+		/// Загрузить данные из потока.
+		/// </summary>
+		/// <param name="stream">Поток.</param>
+		/// <param name="metaInfo">Мета-информация о данных за один день.</param>
+		/// <returns>Данные.</returns>
 		public virtual IEnumerableEx<TData> Deserialize(Stream stream, IMarketDataMetaInfo metaInfo)
 		{
 			// TODO (переделать в будущем)
@@ -381,14 +468,13 @@ namespace StockSharp.Algo.Storages
 			stream.Dispose();
 
 			return new SimpleEnumerable<TData>(() =>
-				new CsvReader(copy, _encoding, SecurityId, metaInfo.Date.Date, _executionType, _members))
+				new CsvReader(copy, _encoding, SecurityId, metaInfo.Date.Date, _executionType, _candleArg, _members))
 				.ToEx(metaInfo.Count);
 		}
 
-		private static DateTimeOffset ParseTime(string str, DateTime date)
+		private static DateTimeOffset ParseTime(string[] parts, DateTime date)
 		{
-			var dto = str.ToDateTimeOffset(_timeFormat);
-			return (date + dto.TimeOfDay).ApplyTimeZone(dto.Offset);
+			return (date + parts[0].ToDateTime(_timeFormat).TimeOfDay).ToDateTimeOffset(TimeSpan.Parse(parts[1].Replace("+", string.Empty)));
 		}
 	}
 }

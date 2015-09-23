@@ -38,7 +38,7 @@
 		/// <param name="series">Серия свечек.</param>
 		/// <param name="time">Период свечи.</param>
 		/// <returns>Свечи.</returns>
-		IEnumerable<Candle> GetCandles(CandleSeries series, DateTime time);
+		IEnumerable<Candle> GetCandles(CandleSeries series, DateTimeOffset time);
 
 		/// <summary>
 		/// Получить для серии все ассоциированные с ней свечи.
@@ -52,7 +52,7 @@
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <param name="candleIndex">Порядковый номер свечи с конца.</param>
-		/// <returns>Найденная свеча. Если свечи не существует, то будет возвращено null.</returns>
+		/// <returns>Найденная свеча. Если свечи не существует, то будет возвращено <see langword="null"/>.</returns>
 		Candle GetCandle(CandleSeries series, int candleIndex);
 
 		/// <summary>

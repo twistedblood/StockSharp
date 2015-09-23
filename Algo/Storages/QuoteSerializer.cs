@@ -34,6 +34,11 @@ namespace StockSharp.Algo.Storages
 				return;
 
 			stream.Write(ServerOffset);
+
+			if (Version < MarketDataVersions.Version52)
+				return;
+
+			WriteOffsets(stream);
 		}
 
 		public override void Read(Stream stream)
@@ -50,9 +55,14 @@ namespace StockSharp.Algo.Storages
 				return;
 
 			ServerOffset = stream.Read<TimeSpan>();
+
+			if (Version < MarketDataVersions.Version52)
+				return;
+
+			ReadOffsets(stream);
 		}
 
-		protected override void CopyFrom(QuoteMetaInfo src)
+		public override void CopyFrom(QuoteMetaInfo src)
 		{
 			base.CopyFrom(src);
 
@@ -66,7 +76,7 @@ namespace StockSharp.Algo.Storages
 		public QuoteSerializer(SecurityId securityId)
 			: base(securityId, 16 + 20 * 25)
 		{
-			Version = MarketDataVersions.Version50;
+			Version = MarketDataVersions.Version52;
 		}
 
 		protected override void OnSave(BitArrayWriter writer, IEnumerable<QuoteChangeMessage> messages, QuoteMetaInfo metaInfo)
@@ -92,24 +102,37 @@ namespace StockSharp.Algo.Storages
 
 			var allowNonOrdered = metaInfo.Version >= MarketDataVersions.Version47;
 			var isUtc = metaInfo.Version >= MarketDataVersions.Version50;
+			var allowDiffOffsets = metaInfo.Version >= MarketDataVersions.Version52;
 
-			foreach (var quoteMsg in messages)
+			foreach (var m in messages)
 			{
+				var quoteMsg = m;
+
 				//if (depth.IsFullEmpty())
 				//	throw new ArgumentException("Переданный стакан является пустым.", "depths");
+
+				if (!quoteMsg.IsSorted)
+				{
+					quoteMsg = (QuoteChangeMessage)quoteMsg.Clone();
+
+					quoteMsg.Bids = quoteMsg.Bids.OrderByDescending(q => q.Price).ToArray();
+					quoteMsg.Asks = quoteMsg.Asks.OrderBy(q => q.Price).ToArray();
+				}
 
 				var bid = quoteMsg.GetBestBid();
 				var ask = quoteMsg.GetBestAsk();
 
-				// у LMAX бид и оффер могут быть равны
+				// LMAX has equals best bid and ask
 				if (bid != null && ask != null && bid.Price > ask.Price)
 					throw new ArgumentException(LocalizedStrings.Str932Params.Put(bid.Price, ask.Price, quoteMsg.ServerTime), "messages");
 
-				metaInfo.LastTime = writer.WriteTime(quoteMsg.ServerTime, metaInfo.LastTime, LocalizedStrings.MarketDepth, allowNonOrdered, isUtc, metaInfo.ServerOffset);
+				var lastOffset = metaInfo.LastServerOffset;
+				metaInfo.LastTime = writer.WriteTime(quoteMsg.ServerTime, metaInfo.LastTime, LocalizedStrings.MarketDepth, allowNonOrdered, isUtc, metaInfo.ServerOffset, allowDiffOffsets, ref lastOffset);
+				metaInfo.LastServerOffset = lastOffset;
 
 				var isFull = prevQuoteMsg == null;
 
-				writer.Write(isFull); // пишем, полный ли стакан или это дельта
+				writer.Write(isFull);
 
 				var delta = isFull ? quoteMsg : prevQuoteMsg.GetDelta(quoteMsg);
 
@@ -136,8 +159,20 @@ namespace StockSharp.Algo.Storages
 					}
 
 					if (hasLocalTime)
-						metaInfo.LastLocalTime = writer.WriteTime(quoteMsg.LocalTime, metaInfo.LastLocalTime, LocalizedStrings.Str934, allowNonOrdered, isUtc, metaInfo.LocalOffset);
+					{
+						lastOffset = metaInfo.LastLocalOffset;
+						metaInfo.LastLocalTime = writer.WriteTime(quoteMsg.LocalTime, metaInfo.LastLocalTime, LocalizedStrings.Str934, allowNonOrdered, isUtc, metaInfo.LocalOffset, allowDiffOffsets, ref lastOffset);
+						metaInfo.LastLocalOffset = lastOffset;
+					}
 				}
+
+				if (metaInfo.Version < MarketDataVersions.Version51)
+					continue;
+
+				writer.Write(quoteMsg.Currency != null);
+
+				if (quoteMsg.Currency != null)
+					writer.WriteInt((int)quoteMsg.Currency.Value);
 			}
 		}
 
@@ -148,10 +183,13 @@ namespace StockSharp.Algo.Storages
 
 			var allowNonOrdered = metaInfo.Version >= MarketDataVersions.Version47;
 			var isUtc = metaInfo.Version >= MarketDataVersions.Version50;
+			var allowDiffOffsets = metaInfo.Version >= MarketDataVersions.Version52;
 
 			var prevTime = metaInfo.FirstTime;
-			var serverTime = reader.ReadTime(ref prevTime, allowNonOrdered, isUtc, metaInfo.GetTimeZone(isUtc, SecurityId));
+			var lastOffset = metaInfo.FirstServerOffset;
+			var serverTime = reader.ReadTime(ref prevTime, allowNonOrdered, isUtc, metaInfo.GetTimeZone(isUtc, SecurityId), allowDiffOffsets, ref lastOffset);
 			metaInfo.FirstTime = prevTime;
+			metaInfo.FirstServerOffset = lastOffset;
 
 			var isFull = reader.Read();
 			var prevDepth = enumerator.Previous;
@@ -197,12 +235,20 @@ namespace StockSharp.Algo.Storages
 				if (hasLocalTime)
 				{
 					var prevLocalTime = metaInfo.FirstLocalTime;
-					var localTime = reader.ReadTime(ref prevLocalTime, allowNonOrdered, isUtc, metaInfo.LocalOffset);
+					lastOffset = metaInfo.FirstLocalOffset;
+					var localTime = reader.ReadTime(ref prevLocalTime, allowNonOrdered, isUtc, metaInfo.LocalOffset, allowDiffOffsets, ref lastOffset);
 					metaInfo.FirstLocalTime = prevLocalTime;
 					quoteMsg.LocalTime = localTime.LocalDateTime;
+					metaInfo.FirstLocalOffset = lastOffset;
 				}
 				//else
 				//	quoteMsg.LocalTime = quoteMsg.Time;
+			}
+
+			if (metaInfo.Version >= MarketDataVersions.Version51)
+			{
+				if (reader.Read())
+					quoteMsg.Currency = (CurrencyTypes)reader.ReadInt();
 			}
 
 			return quoteMsg;
@@ -229,7 +275,7 @@ namespace StockSharp.Algo.Storages
 				//if (quote.Price <= 0)
 				//	throw new ArgumentOutOfRangeException("quotes", quote.Price, LocalizedStrings.Str935);
 
-				// котировки от Форекс истории не хранят объем
+				// some forex connectors do not translate volume
 				//
 				if (quote.Volume < 0/* || (isFull && quote.Volume == 0)*/)
 					throw new ArgumentOutOfRangeException("quotes", quote.Volume, LocalizedStrings.Str936);

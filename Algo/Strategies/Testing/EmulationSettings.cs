@@ -125,7 +125,7 @@ namespace StockSharp.Algo.Strategies.Testing
 		/// </summary>
 		[CategoryLoc(LocalizedStrings.Str1174Key)]
 		[PropertyOrder(30)]
-		[DisplayNameLoc(LocalizedStrings.Str1414Key)]
+		[DisplayNameLoc(LocalizedStrings.MarketDepthsKey)]
 		[DescriptionLoc(LocalizedStrings.Str1415Key)]
 		public EmulationMarketDataModes DepthDataMode
 		{
@@ -207,7 +207,6 @@ namespace StockSharp.Algo.Strategies.Testing
 		{
 			MarketTimeChangedInterval = TimeSpan.FromMinutes(1);
 			LogLevel = LogLevels.Info;
-			UseCandlesTimeFrame = TimeSpan.FromMinutes(5);
 		}
 
 		/// <summary>

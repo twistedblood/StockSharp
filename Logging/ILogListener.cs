@@ -1,18 +1,19 @@
-﻿namespace StockSharp.Logging
+namespace StockSharp.Logging
 {
+	using System;
 	using System.Collections.Generic;
 
 	using Ecng.Serialization;
 
 	/// <summary>
-	/// Интерфейс класса, который мониторит событие <see cref="ILogSource.Log"/> и сохраняет в некое хранилище.
+	/// The class interface that monitors the event <see cref="ILogSource.Log"/> and saves to some storage.
 	/// </summary>
-	public interface ILogListener : IPersistable
+	public interface ILogListener : IPersistable, IDisposable
 	{
 		/// <summary>
-		/// Записать сообщения.
+		/// To record messages.
 		/// </summary>
-		/// <param name="messages">Отладочные сообщения.</param>
+		/// <param name="messages">Debug messages.</param>
 		void WriteMessages(IEnumerable<LogMessage> messages);
 	}
 }

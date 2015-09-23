@@ -15,6 +15,9 @@ namespace StockSharp.OpenECry
 	using StockSharp.Messages;
 	using StockSharp.Localization;
 
+	/// <summary>
+	/// The messages adapter for OpenECry.
+	/// </summary>
 	partial class OpenECryMessageAdapter
 	{
 		private readonly SynchronizedPairSet<Tuple<SecurityId, MarketDataTypes>, Subscription> _subscriptions = new SynchronizedPairSet<Tuple<SecurityId, MarketDataTypes>, Subscription>();
@@ -52,7 +55,7 @@ namespace StockSharp.OpenECry
 
 					if (message.IsSubscribe)
 					{
-						var subscription = _client.SubscribeTicks(contract, message.From.UtcDateTime);
+						var subscription = _client.SubscribeTicks(contract, (message.From ?? DateTimeOffset.MinValue).UtcDateTime);
 						_subscriptions.Add(key, subscription);
 					}
 					else
@@ -132,9 +135,9 @@ namespace StockSharp.OpenECry
 								throw new InvalidOperationException();
 						}
 
-						var subscription = message.Count == 0
-							? _client.SubscribeBars(contract, message.From.UtcDateTime, subscriptionType, interval)
-							: _client.SubscribeBars(contract, (int)message.Count, subscriptionType, interval, false);
+						var subscription = message.Count == null
+							? _client.SubscribeBars(contract, (message.From ?? DateTimeOffset.MinValue).UtcDateTime, subscriptionType, interval)
+							: _client.SubscribeBars(contract, (int)message.Count.Value, subscriptionType, interval, false);
 
 						_subscriptions.Add(key, subscription);
 					}
@@ -248,9 +251,9 @@ namespace StockSharp.OpenECry
 				Name = contract.Name,
 				UnderlyingSecurityCode = contract.BaseSymbol,
 				Currency = contract.Currency.Name.ToCurrency(),
-				Strike = contract.Strike.SafeCast(),
+				Strike = contract.Strike.ToDecimal(),
 				ExpiryDate = contract.HasExpiration ? contract.ExpirationDate.ApplyTimeZone(TimeHelper.Est) : (DateTimeOffset?)null,
-				PriceStep = contract.TickSize.SafeCast(),
+				PriceStep = contract.TickSize.ToDecimal(),
 				Decimals = contract.PriceFormat > 0 ? contract.PriceFormat : (int?)null,
 				OptionType = contract.IsOption ? (contract.Put ? OptionTypes.Put : OptionTypes.Call) : (OptionTypes?)null,
 				SecurityType = contract.GetSecurityType(),
@@ -293,7 +296,7 @@ namespace StockSharp.OpenECry
 					SecurityId = new SecurityId
 					{
 						SecurityCode = contract.Symbol,
-						BoardCode = GetBoardCode(ticks.Exchanges[i], contract, "ALL"),
+						BoardCode = GetBoardCode(ticks.Exchanges[i], contract, AssociatedBoardCode),
 					},
 					ServerTime = ticks.Timestamps[i].ApplyTimeZone(TimeHelper.Est)
 				}
@@ -407,17 +410,17 @@ namespace StockSharp.OpenECry
 			var asks = new List<QuoteChange>();
 
 			for (var i = 0; i < dom.BidExchanges.Length; i++)
-				bids.Add(new QuoteChange(Sides.Buy, contract.Cast(dom.BidLevels[i]), dom.BidSizes[i]) { BoardCode = GetBoardCode(dom.BidExchanges[i], contract, null) });
+				bids.Add(new QuoteChange(Sides.Buy, contract.Cast(dom.BidLevels[i]) ?? 0, dom.BidSizes[i]) { BoardCode = GetBoardCode(dom.BidExchanges[i], contract, null) });
 
 			for (var i = 0; i < dom.AskExchanges.Length; i++)
-				asks.Add(new QuoteChange(Sides.Sell, contract.Cast(dom.AskLevels[i]), dom.AskSizes[i]) { BoardCode = GetBoardCode(dom.AskExchanges[i], contract, null) });
+				asks.Add(new QuoteChange(Sides.Sell, contract.Cast(dom.AskLevels[i]) ?? 0, dom.AskSizes[i]) { BoardCode = GetBoardCode(dom.AskExchanges[i], contract, null) });
 
 			SendOutMessage(new QuoteChangeMessage
 			{
 				SecurityId = new SecurityId
 				{
 					SecurityCode = contract.Symbol,
-					BoardCode = "ALL"
+					BoardCode = AssociatedBoardCode
 				},
 				ServerTime = dom.LastUpdate.ApplyTimeZone(TimeHelper.Est),
 				Bids = bids,
@@ -501,10 +504,10 @@ namespace StockSharp.OpenECry
 				};
 				msg.OpenTime = bar.Timestamp.ApplyTimeZone(TimeHelper.Est);
 				msg.CloseTime = bar.CloseTimestamp.ApplyTimeZone(TimeHelper.Est);
-				msg.OpenPrice = contract.Cast(bar.Open);
-				msg.HighPrice = contract.Cast(bar.High);
-				msg.LowPrice = contract.Cast(bar.Low);
-				msg.ClosePrice = contract.Cast(bar.Close);
+				msg.OpenPrice = contract.Cast(bar.Open) ?? 0;
+				msg.HighPrice = contract.Cast(bar.High) ?? 0;
+				msg.LowPrice = contract.Cast(bar.Low) ?? 0;
+				msg.ClosePrice = contract.Cast(bar.Close) ?? 0;
 				msg.TotalVolume = bar.Volume64;
 				msg.TotalTicks = bar.Ticks;
 				msg.UpTicks = (int)bar.UpTicks;

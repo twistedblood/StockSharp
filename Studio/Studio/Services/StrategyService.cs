@@ -135,7 +135,7 @@ namespace StockSharp.Studio.Services
 				if (exchangeBoard == null)
 					return;
 
-				if (time <= exchangeBoard.Exchange.ToExchangeTime(_connectTime))
+				if (time.LocalDateTime <= _connectTime)
 					return;
 
 				_isInitialization = false;
@@ -170,7 +170,7 @@ namespace StockSharp.Studio.Services
 					{
 						new ChartAutoRangeCommand(false).Process(_strategy);
 
-						_strategy.PositionManager.Positions = _sessionStrategy.Positions.Select(p => p.Position).ToList();
+						_strategy.PositionManager.Positions = _sessionStrategy.Positions.Select(p => p.Position).ToArray();
 
 						if (_onlyInitialize)
 						{

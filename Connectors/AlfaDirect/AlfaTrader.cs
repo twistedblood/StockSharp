@@ -117,6 +117,10 @@
 					var candle = candleMsg.ToCandle(series);
 
 					NewCandles.SafeInvoke(series, new[] { candle });
+
+					if (candleMsg.IsFinished)
+						Stopped.SafeInvoke(series);
+
 					return; // base class throws exception
 				}
 			}
@@ -125,7 +129,7 @@
 		}
 
 		/// <summary>
-		/// Получить временные диапазоны, для которых у данного источниках для передаваемой серии свечек есть данные.
+		/// Получить временные диапазоны, для которых у данного источника для передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">Серия свечек.</param>
 		/// <returns>Временные диапазоны.</returns>
@@ -191,6 +195,11 @@
 		/// Событие появления новых свечек, полученных после подписки через <see cref="SubscribeCandles"/>.
 		/// </summary>
 		public event Action<CandleSeries, IEnumerable<Candle>> NewCandles;
+
+		/// <summary>
+		/// Событие окончания обработки серии.
+		/// </summary>
+		public event Action<CandleSeries> Stopped;
 
 		/// <summary>
 		/// Загрузить настройки.

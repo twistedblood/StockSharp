@@ -17,8 +17,8 @@ namespace StockSharp.Transaq
 	using Xceed.Wpf.Toolkit.PropertyGrid.Attributes;
 
 	[DisplayName("Transaq")]
-	[CategoryLoc(LocalizedStrings.Str1769Key)]
-	[DescriptionLoc(LocalizedStrings.Str3538Key)]
+	[CategoryLoc(LocalizedStrings.RussiaKey)]
+	[DescriptionLoc(LocalizedStrings.Str1770Key, "Transaq")]
 	[CategoryOrderLoc(LocalizedStrings.GeneralKey, 0)]
 	[CategoryOrderLoc(LocalizedStrings.Str174Key, 1)]
 	[CategoryOrderLoc(LocalizedStrings.Str186Key, 2)]
@@ -283,12 +283,12 @@ namespace StockSharp.Transaq
 		}
 
 		/// <summary>
-		/// Получить строковое представление контейнера.
+		/// Получить строковое представление.
 		/// </summary>
 		/// <returns>Строковое представление.</returns>
 		public override string ToString()
 		{
-			return LocalizedStrings.Str1866Params.Put(Login, Address);
+			return LocalizedStrings.Str1866Params.Put(Login, Address.To<string>());
 		}
 	}
 }

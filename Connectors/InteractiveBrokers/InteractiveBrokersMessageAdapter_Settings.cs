@@ -14,8 +14,8 @@ namespace StockSharp.InteractiveBrokers
 	using Xceed.Wpf.Toolkit.PropertyGrid.Attributes;
 
 	[DisplayName("Interactive Brokers")]
-	[CategoryLoc(LocalizedStrings.Str2119Key)]
-	[DescriptionLoc(LocalizedStrings.Str2516Key)]
+	[CategoryLoc(LocalizedStrings.AmericaKey)]
+	[DescriptionLoc(LocalizedStrings.Str1770Key, "Interactive Brokers")]
 	[CategoryOrderLoc(LocalizedStrings.Str174Key, 0)]
 	[CategoryOrderLoc(LocalizedStrings.Str186Key, 1)]
 	[CategoryOrderLoc(LocalizedStrings.LoggingKey, 2)]
@@ -53,7 +53,7 @@ namespace StockSharp.InteractiveBrokers
 		/// Использовать ли данные реального времени или "замороженные" на сервере брокера. По-умолчанию используются "замороженные" данные.
 		/// </summary>
 		[CategoryLoc(LocalizedStrings.Str174Key)]
-		[DisplayNameLoc(LocalizedStrings.Str2519Key)]
+		[DisplayNameLoc(LocalizedStrings.RealTimeKey)]
 		[DescriptionLoc(LocalizedStrings.Str2520Key)]
 		[PropertyOrder(3)]
 		public bool IsRealTimeMarketData { get; set; }
@@ -94,13 +94,17 @@ namespace StockSharp.InteractiveBrokers
 		[Browsable(false)]
 		public DateTime ConnectedTime { get; internal set; }
 
-		internal bool ExtraAuth { get; set; }
+		/// <summary>
+		/// Экстра подключение.
+		/// </summary>
+		[Browsable(false)]
+		public bool ExtraAuth { get; set; }
 
-		//internal TimeSpan TimeDiff { get; private set; }
-
-		//internal readonly SynchronizedDictionary<SecurityId, SecurityMessage> Securities = new SynchronizedDictionary<SecurityId, SecurityMessage>();
-
-		
+		/// <summary>
+		/// Дополнительные возможности.
+		/// </summary>
+		[Browsable(false)]
+		public string OptionalCapabilities { get; set; }
 
 		/// <summary>
 		/// Загрузить настройки.
@@ -115,6 +119,8 @@ namespace StockSharp.InteractiveBrokers
 			IsRealTimeMarketData = storage.GetValue<bool>("IsRealTimeMarketData");
 			ServerLogLevel = storage.GetValue<ServerLogLevels>("ServerLogLevel");
 			Fields = storage.GetValue<string>("Fields").Split(",").Select(n => n.To<GenericFieldTypes>()).ToArray();
+			ExtraAuth = storage.GetValue<bool>("ExtraAuth");
+			OptionalCapabilities = storage.GetValue<string>("OptionalCapabilities");
 		}
 
 		/// <summary>
@@ -130,10 +136,12 @@ namespace StockSharp.InteractiveBrokers
 			storage.SetValue("IsRealTimeMarketData", IsRealTimeMarketData);
 			storage.SetValue("ServerLogLevel", ServerLogLevel.To<string>());
 			storage.SetValue("Fields", Fields.Select(t => t.To<string>()).Join(","));
+			storage.SetValue("ExtraAuth", ExtraAuth);
+			storage.SetValue("OptionalCapabilities", OptionalCapabilities);
 		}
 
 		/// <summary>
-		/// Получить строковое представление контейнера.
+		/// Получить строковое представление.
 		/// </summary>
 		/// <returns>Строковое представление.</returns>
 		public override string ToString()

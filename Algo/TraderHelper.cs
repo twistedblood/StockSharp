@@ -1,6 +1,7 @@
 namespace StockSharp.Algo
 {
 	using System;
+	using System.Collections;
 	using System.Collections.Generic;
 	using System.Data;
 	using System.Linq;
@@ -540,7 +541,7 @@ namespace StockSharp.Algo
 		/// <returns>Прибыль-убыток.</returns>
 		public static decimal GetPnL(this ExecutionMessage trade, decimal currentPrice)
 		{
-			return GetPnL(trade.GetTradePrice(), trade.GetVolume(), trade.Side, currentPrice);
+			return GetPnL(trade.GetTradePrice(), trade.SafeGetVolume(), trade.Side, currentPrice);
 		}
 
 		internal static decimal GetPnL(decimal price, decimal volume, Sides side, decimal marketPrice)
@@ -551,7 +552,7 @@ namespace StockSharp.Algo
 		/// <summary>
 		/// Рассчитать прибыль-убыток на основе портфеля.
 		/// </summary>
-		/// <param name="portfolio">Портфель, для которого необходимо расcчитать прибыль-убыток.</param>
+		/// <param name="portfolio">Портфель, для которого необходимо рассчитать прибыль-убыток.</param>
 		/// <returns>Прибыль-убыток.</returns>
 		public static decimal GetPnL(this Portfolio portfolio)
 		{
@@ -577,24 +578,24 @@ namespace StockSharp.Algo
 			return currentPrice * position.CurrentValue * security.StepPrice / security.PriceStep ?? 1;
 		}
 
-		/// <summary>
-		/// Получить текущее время с учетом часового пояса торговой площадки инструмента.
-		/// </summary>
-		/// <param name="connector">Подключение к торговой системе.</param>
-		/// <param name="security">Инструмент.</param>
-		/// <returns>Текущее время.</returns>
-		public static DateTime GetMarketTime(this IConnector connector, Security security)
-		{
-			if (connector == null)
-				throw new ArgumentNullException("connector");
+		///// <summary>
+		///// Получить текущее время с учетом часового пояса торговой площадки инструмента.
+		///// </summary>
+		///// <param name="connector">Подключение к торговой системе.</param>
+		///// <param name="security">Инструмент.</param>
+		///// <returns>Текущее время.</returns>
+		//public static DateTime GetMarketTime(this IConnector connector, Security security)
+		//{
+		//	if (connector == null)
+		//		throw new ArgumentNullException("connector");
 
-			if (security == null)
-				throw new ArgumentNullException("security");
+		//	if (security == null)
+		//		throw new ArgumentNullException("security");
 
-			var localTime = connector.CurrentTime;
+		//	var localTime = connector.CurrentTime;
 
-			return security.ToExchangeTime(localTime);
-		}
+		//	return security.ToExchangeTime(localTime);
+		//}
 
 		/// <summary>
 		/// Проверить, является ли время торгуемым (началась ли сессия, не закончилась ли, нет ли клиринга).
@@ -604,28 +605,31 @@ namespace StockSharp.Algo
 		/// <returns><see langword="true"/>, если торгуемое время, иначе, неторгуемое.</returns>
 		public static bool IsTradeTime(this ExchangeBoard board, DateTimeOffset time)
 		{
-			if (board == null)
-				throw new ArgumentNullException("board");
-
-			return board.WorkingTime.IsTradeTime(time.DateTime);
+			return board.ToMessage().IsTradeTime(time);
 		}
 
 		/// <summary>
 		/// Проверить, является ли время торгуемым (началась ли сессия, не закончилась ли, нет ли клиринга).
 		/// </summary>
-		/// <param name="workingTime">Информация о режиме работы биржи. Например, для FORTS будут значения 10:00-13:59, 14:03-18:49 и 19:00-23:49.</param>
+		/// <param name="board">Информация о площадке.</param>
 		/// <param name="time">Передаваемое время, которое нужно проверить.</param>
 		/// <returns><see langword="true"/>, если торгуемое время, иначе, неторгуемое.</returns>
-		public static bool IsTradeTime(this WorkingTime workingTime, DateTime time)
+		public static bool IsTradeTime(this BoardMessage board, DateTimeOffset time)
 		{
-			var isWorkingDay = workingTime.IsTradeDate(time.Date);
+			if (board == null)
+				throw new ArgumentNullException("board");
+
+			var exchangeTime = time.ToLocalTime(board.TimeZoneInfo);
+			var workingTime = board.WorkingTime;
+
+			var isWorkingDay = board.IsTradeDate(time);
 
 			if (!isWorkingDay)
 				return false;
 
-			var period = workingTime.GetPeriod(time);
+			var period = workingTime.GetPeriod(exchangeTime);
 
-			var tod = time.TimeOfDay;
+			var tod = exchangeTime.TimeOfDay;
 			return period == null || period.Times.IsEmpty() || period.Times.Any(r => r.Contains(tod));
 		}
 
@@ -638,32 +642,35 @@ namespace StockSharp.Algo
 		/// <returns><see langword="true"/>, если торгуемая дата, иначе, неторгуемая.</returns>
 		public static bool IsTradeDate(this ExchangeBoard board, DateTimeOffset date, bool checkHolidays = false)
 		{
-			return board.WorkingTime.IsTradeDate(date.DateTime, checkHolidays);
+			return board.ToMessage().IsTradeDate(date, checkHolidays);
 		}
 
 		/// <summary>
 		/// Проверить, является ли дата торгуемой.
 		/// </summary>
-		/// <param name="workingTime">Информация о режиме работы биржи.</param>
+		/// <param name="board">Информация о площадке.</param>
 		/// <param name="date">Передаваемая дата, которую необходимо проверить.</param>
 		/// <param name="checkHolidays">Проверять ли переданную дату на день недели (суббота и воскресенье являются выходными и для них будет возвращено <see langword="false"/>).</param>
 		/// <returns><see langword="true"/>, если торгуемая дата, иначе, неторгуемая.</returns>
-		public static bool IsTradeDate(this WorkingTime workingTime, DateTime date, bool checkHolidays = false)
+		public static bool IsTradeDate(this BoardMessage board, DateTimeOffset date, bool checkHolidays = false)
 		{
-			if (workingTime == null)
-				throw new ArgumentNullException("workingTime");
+			if (board == null)
+				throw new ArgumentNullException("board");
 
-			var period = workingTime.GetPeriod(date);
+			var exchangeTime = date.ToLocalTime(board.TimeZoneInfo);
+			var workingTime = board.WorkingTime;
+
+			var period = workingTime.GetPeriod(exchangeTime);
 
 			if ((period == null || period.Times.Length == 0) && workingTime.SpecialWorkingDays.Length == 0 && workingTime.SpecialHolidays.Length == 0)
 				return true;
 
 			bool isWorkingDay;
 
-			if (checkHolidays && (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday))
-				isWorkingDay = workingTime.SpecialWorkingDays.Contains(date.Date);
+			if (checkHolidays && (exchangeTime.DayOfWeek == DayOfWeek.Saturday || exchangeTime.DayOfWeek == DayOfWeek.Sunday))
+				isWorkingDay = workingTime.SpecialWorkingDays.Contains(exchangeTime.Date);
 			else
-				isWorkingDay = !workingTime.SpecialHolidays.Contains(date.Date);
+				isWorkingDay = !workingTime.SpecialHolidays.Contains(exchangeTime.Date);
 
 			return isWorkingDay;
 		}
@@ -977,7 +984,7 @@ namespace StockSharp.Algo
 				if (!changedVolume.TryGetValue(price, out vol))
 					vol = quote.Volume;
 
-				vol -= trade.GetVolume();
+				vol -= trade.SafeGetVolume();
 				changedVolume[quote.Price] = vol;
 			}
 
@@ -1284,113 +1291,6 @@ namespace StockSharp.Algo
 		}
 
 		/// <summary>
-		/// Вычислить приращение между котировками. 
-		/// </summary>
-		/// <param name="from">Первые котировки.</param>
-		/// <param name="to">Вторые котировки.</param>
-		/// <param name="side">Направление, показывающее тип котировок.</param>
-		/// <param name="isSorted">Отсортированы ли котировки.</param>
-		/// <returns>Изменения.</returns>
-		public static IEnumerable<QuoteChange> GetDiff(this IEnumerable<QuoteChange> from, IEnumerable<QuoteChange> to, Sides side, bool isSorted)
-		{
-			if (!isSorted)
-			{
-				if (side == Sides.Sell)
-				{
-					from = from.OrderBy(q => q.Price);
-					to = to.OrderBy(q => q.Price);
-				}
-				else
-				{
-					from = from.OrderByDescending(q => q.Price);
-					to = to.OrderByDescending(q => q.Price);
-				}
-			}
-
-			var diff = new List<QuoteChange>();
-
-			var canProcessFrom = true;
-			var canProcessTo = true;
-
-			QuoteChange currFrom = null;
-			QuoteChange currTo = null;
-
-			var mult = side == Sides.Buy ? -1 : 1;
-
-			using (var fromEnum = from.GetEnumerator())
-			using (var toEnum = to.GetEnumerator())
-			{
-				while (true)
-				{
-					if (canProcessFrom && currFrom == null)
-					{
-						if (!fromEnum.MoveNext())
-							canProcessFrom = false;
-						else
-							currFrom = fromEnum.Current;
-					}
-
-					if (canProcessTo && currTo == null)
-					{
-						if (!toEnum.MoveNext())
-							canProcessTo = false;
-						else
-							currTo = toEnum.Current;
-					}
-
-					if (currFrom == null)
-					{
-						if (currTo == null)
-							break;
-						else
-						{
-							diff.Add(currTo.Clone());
-							currTo = null;
-						}
-					}
-					else
-					{
-						if (currTo == null)
-						{
-							var clone = currFrom.Clone();
-							clone.Volume = -clone.Volume;
-							diff.Add(clone);
-							currFrom = null;
-						}
-						else
-						{
-							if (currFrom.Price == currTo.Price)
-							{
-								if (currFrom.Volume != currTo.Volume)
-								{
-									var clone = currTo.Clone();
-									clone.Volume -= currFrom.Volume;
-									diff.Add(clone);
-								}
-
-								currFrom = currTo = null;
-							}
-							else if (currFrom.Price * mult > currTo.Price * mult)
-							{
-								diff.Add(currTo.Clone());
-								currTo = null;
-							}
-							else
-							{
-								var clone = currFrom.Clone();
-								clone.Volume = -clone.Volume;
-								diff.Add(clone);
-								currFrom = null;
-							}
-						}
-					}
-				}
-			}
-
-			return diff;
-		}
-
-		/// <summary>
 		/// Проверить, отменена ли заявка.
 		/// </summary>
 		/// <param name="order">Заявка, которую необходимо проверить.</param>
@@ -1504,9 +1404,9 @@ namespace StockSharp.Algo
 		}
 
 		/// <summary>
-		/// Расcчитать реализованную часть объема для заявки.
+		/// Рассчитать реализованную часть объема для заявки.
 		/// </summary>
-		/// <param name="order">Заявка, для которой необходимо расcчитать реализованную часть объема.</param>
+		/// <param name="order">Заявка, для которой необходимо рассчитать реализованную часть объема.</param>
 		/// <param name="byOrder">Проверять реализованный объем по балансу заявке (<see cref="Order.Balance"/>) или по полученным сделкам.
 		/// По-умолчанию проверяется по заявке.</param>
 		/// <returns>Реализованная часть объема.</returns>
@@ -1587,7 +1487,7 @@ namespace StockSharp.Algo
 		/// Получить вероятные сделки по стакану для заданной заявки.
 		/// </summary>
 		/// <param name="depth">Стакан, который в момент вызова функции отражает ситуацию на рынке.</param>
-		/// <param name="order">Заявку, для которой необходимо расcчитать вероятные сделки.</param>
+		/// <param name="order">Заявку, для которой необходимо рассчитать вероятные сделки.</param>
 		/// <returns>Вероятные сделки.</returns>
 		public static IEnumerable<MyTrade> GetTheoreticalTrades(this MarketDepth depth, Order order)
 		{
@@ -1706,7 +1606,7 @@ namespace StockSharp.Algo
 		/// Получить направление заявки для позиции.
 		/// </summary>
 		/// <remarks>
-		/// Положительное значение равно <see cref="Sides.Buy"/>, отрицательное - <see cref="Sides.Sell"/>, нулевое - null.
+		/// Положительное значение равно <see cref="Sides.Buy"/>, отрицательное - <see cref="Sides.Sell"/>, нулевое - <see langword="null"/>.
 		/// </remarks>
 		/// <param name="position">Значение позиции.</param>
 		/// <returns>Направление заявки.</returns>
@@ -1722,7 +1622,7 @@ namespace StockSharp.Algo
 		/// Получить направление заявки для позиции.
 		/// </summary>
 		/// <remarks>
-		/// Положительное значение равно <see cref="Sides.Buy"/>, отрицательное - <see cref="Sides.Sell"/>, нулевое - null.
+		/// Положительное значение равно <see cref="Sides.Buy"/>, отрицательное - <see cref="Sides.Sell"/>, нулевое - <see langword="null"/>.
 		/// </remarks>
 		/// <param name="position">Значение позиции.</param>
 		/// <returns>Направление заявки.</returns>
@@ -1739,11 +1639,11 @@ namespace StockSharp.Algo
 		/// </summary>
 		/// <param name="connector">Подключение взаимодействия с торговыми системами.</param>
 		/// <param name="orders">Группа заявок, из которой необходимо найти требуемые заявки и отменить их.</param>
-		/// <param name="isStopOrder"><see langword="true"/>, если нужно отменить только стоп-заявки, false - если только обычный и null - если оба типа.</param>
-		/// <param name="portfolio">Портфель. Если значение равно null, то портфель не попадает в фильтр снятия заявок.</param>
-		/// <param name="direction">Направление заявки. Если значение равно null, то направление не попадает в фильтр снятия заявок.</param>
-		/// <param name="board">Торговая площадка. Если значение равно null, то площадка не попадает в фильтр снятия заявок.</param>
-		/// <param name="security">Инструмент. Если значение равно null, то инструмент не попадает в фильтр снятия заявок.</param>
+		/// <param name="isStopOrder"><see langword="true"/>, если нужно отменить только стоп-заявки, <see langword="false"/> - если только обычный и <see langword="null"/> - если оба типа.</param>
+		/// <param name="portfolio">Портфель. Если значение равно <see langword="null"/>, то портфель не попадает в фильтр снятия заявок.</param>
+		/// <param name="direction">Направление заявки. Если значение равно <see langword="null"/>, то направление не попадает в фильтр снятия заявок.</param>
+		/// <param name="board">Торговая площадка. Если значение равно <see langword="null"/>, то площадка не попадает в фильтр снятия заявок.</param>
+		/// <param name="security">Инструмент. Если значение равно <see langword="null"/>, то инструмент не попадает в фильтр снятия заявок.</param>
 		public static void CancelOrders(this IConnector connector, IEnumerable<Order> orders, bool? isStopOrder = null, Portfolio portfolio = null, Sides? direction = null, ExchangeBoard board = null, Security security = null)
 		{
 			if (connector == null)
@@ -1861,7 +1761,7 @@ namespace StockSharp.Algo
 		/// <param name="from">Дата, с которой нужно искать сделки.</param>
 		/// <param name="to">Дата, до которой нужно искать сделки.</param>
 		/// <returns>Отфильтрованные сделки.</returns>
-		public static IEnumerable<Trade> Filter(this IEnumerable<Trade> trades, DateTime from, DateTime to)
+		public static IEnumerable<Trade> Filter(this IEnumerable<Trade> trades, DateTimeOffset from, DateTimeOffset to)
 		{
 			if (trades == null)
 				throw new ArgumentNullException("trades");
@@ -2087,7 +1987,7 @@ namespace StockSharp.Algo
 				if (criteria.OptionType != null && s.OptionType != criteria.OptionType)
 					return false;
 
-				if (criteria.Currency != CurrencyTypes.RUB && s.Currency != criteria.Currency)
+				if (criteria.Currency != null && s.Currency != criteria.Currency)
 					return false;
 
 				if (!criteria.Class.IsEmptyOrWhiteSpace() && !s.Class.ContainsIgnoreCase(criteria.Class))
@@ -2153,20 +2053,20 @@ namespace StockSharp.Algo
 		/// <summary>
 		/// Получить T+N дату.
 		/// </summary>
-		/// <param name="time">Информация о режиме работы биржи.</param>
+		/// <param name="board">Информация о площадке.</param>
 		/// <param name="date">Начальная дата T.</param>
 		/// <param name="n">Размер N.</param>
 		/// <returns>Конечная дата T+N.</returns>
-		public static DateTime GetTPlusNDate(this WorkingTime time, DateTime date, int n)
+		public static DateTimeOffset GetTPlusNDate(this ExchangeBoard board, DateTimeOffset date, int n)
 		{
-			if (time == null)
-				throw new ArgumentNullException("time");
+			if (board == null)
+				throw new ArgumentNullException("board");
 
-			date = date.Date;
+			date = date.Date.ApplyTimeZone(date.Offset);
 
 			while (n > 0)
 			{
-				if (time.IsTradeDate(date))
+				if (board.IsTradeDate(date))
 					n--;
 
 				date = date.AddDays(1);
@@ -2175,19 +2075,19 @@ namespace StockSharp.Algo
 			return date;
 		}
 
-		/// <summary>
-		/// Перевести локальное время в биржевое.
-		/// </summary>
-		/// <param name="exchange">Информация о бирже.</param>
-		/// <param name="time">Локальное время.</param>
-		/// <returns>Время с биржевым сдвигом.</returns>
-		public static DateTime ToExchangeTime(this Exchange exchange, DateTimeOffset time)
-		{
-			if (exchange == null)
-				throw new ArgumentNullException("exchange");
+		///// <summary>
+		///// Перевести локальное время в биржевое.
+		///// </summary>
+		///// <param name="exchange">Информация о бирже.</param>
+		///// <param name="time">Локальное время.</param>
+		///// <returns>Время с биржевым сдвигом.</returns>
+		//public static DateTimeOffset ToExchangeTime(this Exchange exchange, DateTime time)
+		//{
+		//	if (exchange == null)
+		//		throw new ArgumentNullException("exchange");
 
-			return time.ToLocalTime(exchange.TimeZoneInfo);
-		}
+		//	return time.ToLocalTime(exchange.TimeZoneInfo).ApplyTimeZone(exchange.TimeZoneInfo);
+		//}
 
 		///// <summary>
 		///// Перевести локальное время в биржевое.
@@ -2204,25 +2104,25 @@ namespace StockSharp.Algo
 		//	return time.To(sourceZone, exchange.TimeZoneInfo);
 		//}
 
-		/// <summary>
-		/// Перевести локальное время в биржевое.
-		/// </summary>
-		/// <param name="security">Информация о инструменте.</param>
-		/// <param name="localTime">Локальное время.</param>
-		/// <returns>Время с биржевым сдвигом.</returns>
-		public static DateTime ToExchangeTime(this Security security, DateTimeOffset localTime)
-		{
-			if (security == null) 
-				throw new ArgumentNullException("security");
+		///// <summary>
+		///// Перевести локальное время в биржевое.
+		///// </summary>
+		///// <param name="security">Информация о инструменте.</param>
+		///// <param name="localTime">Локальное время.</param>
+		///// <returns>Время с биржевым сдвигом.</returns>
+		//public static DateTimeOffset ToExchangeTime(this Security security, DateTimeOffset localTime)
+		//{
+		//	if (security == null) 
+		//		throw new ArgumentNullException("security");
 
-			if (security.Board == null)
-				throw new ArgumentException(LocalizedStrings.Str1215Params.Put(security.Id), "security");
+		//	if (security.Board == null)
+		//		throw new ArgumentException(LocalizedStrings.Str903Params.Put(security.Id), "security");
 
-			if (security.Board.Exchange == null)
-				throw new ArgumentException(LocalizedStrings.Str1216Params.Put(security.Id), "security");
+		//	if (security.Board.Exchange == null)
+		//		throw new ArgumentException(LocalizedStrings.Str1216Params.Put(security.Id), "security");
 
-			return security.Board.Exchange.ToExchangeTime(localTime);
-		}
+		//	return security.Board.Exchange.ToExchangeTime(localTime);
+		//}
 
 		///// <summary>
 		///// Перевести биржевое время в локальное.
@@ -2249,19 +2149,19 @@ namespace StockSharp.Algo
 		//	//return exchangeTime.To(exchange.TimeZoneInfo, TimeZoneInfo.Local);
 		//}
 
-		/// <summary>
-		/// Перевести биржевое время в UTC.
-		/// </summary>
-		/// <param name="exchange">Информация о бирже, из которой будет использоваться <see cref="Exchange.TimeZoneInfo"/>.</param>
-		/// <param name="exchangeTime">Биржевое время.</param>
-		/// <returns>Биржевое время в UTC.</returns>
-		public static DateTime ToUtc(this Exchange exchange, DateTime exchangeTime)
-		{
-			if (exchange == null)
-				throw new ArgumentNullException("exchange");
+		///// <summary>
+		///// Перевести биржевое время в UTC.
+		///// </summary>
+		///// <param name="exchange">Информация о бирже, из которой будет использоваться <see cref="Exchange.TimeZoneInfo"/>.</param>
+		///// <param name="exchangeTime">Биржевое время.</param>
+		///// <returns>Биржевое время в UTC.</returns>
+		//public static DateTime ToUtc(this Exchange exchange, DateTime exchangeTime)
+		//{
+		//	if (exchange == null)
+		//		throw new ArgumentNullException("exchange");
 
-			return TimeZoneInfo.ConvertTimeToUtc(exchangeTime, exchange.TimeZoneInfo);
-		}
+		//	return TimeZoneInfo.ConvertTimeToUtc(exchangeTime, exchange.TimeZoneInfo);
+		//}
 
 		/// <summary>
 		/// Вычислить задержку на основе разницы между серверным времени и локальным.
@@ -2296,7 +2196,7 @@ namespace StockSharp.Algo
 		/// Получить размер свободных денежных средств в портфеле.
 		/// </summary>
 		/// <param name="portfolio">Портфель</param>
-		/// <param name="useLeverage">Использовать ли для рассчета размер плеча.</param>
+		/// <param name="useLeverage">Использовать ли для расчета размер плеча.</param>
 		/// <returns>Размер свободных денежных средств.</returns>
 		public static decimal GetFreeMoney(this Portfolio portfolio, bool useLeverage = false)
 		{
@@ -2316,7 +2216,7 @@ namespace StockSharp.Algo
 		/// <param name="from">Начало диапазона экспираций.</param>
 		/// <param name="to">Окончание диапазона экспираций.</param>
 		/// <returns>Даты экспирации.</returns>
-		public static IEnumerable<DateTime> GetExpiryDates(this DateTime from, DateTime to)
+		public static IEnumerable<DateTimeOffset> GetExpiryDates(this DateTime from, DateTime to)
 		{
 			if (from > to)
 				throw new ArgumentOutOfRangeException("from");
@@ -2335,8 +2235,9 @@ namespace StockSharp.Algo
 						case 9:
 						case 12:
 						{
-							var dt = new DateTime(year, month, 15);
-							while (!ExchangeBoard.Forts.WorkingTime.IsTradeDate(dt))
+							var dt = new DateTime(year, month, 15).ApplyTimeZone(ExchangeBoard.Forts.Exchange.TimeZoneInfo);
+
+							while (!ExchangeBoard.Forts.IsTradeDate(dt))
 							{
 								dt = dt.AddDays(1);
 							}
@@ -2600,7 +2501,7 @@ namespace StockSharp.Algo
 		/// </summary>
 		/// <param name="receiver">Получатель логов.</param>
 		/// <param name="order">Заявка.</param>
-		/// <param name="operation">Операция, которая проводится в заявокй.</param>
+		/// <param name="operation">Операция, которая проводится с заявкой.</param>
 		/// <param name="getAdditionalInfo">Дополнительная информация о заявке.</param>
 		public static void AddOrderInfoLog(this ILogReceiver receiver, Order order, string operation, Func<string> getAdditionalInfo = null)
 		{
@@ -2612,7 +2513,7 @@ namespace StockSharp.Algo
 		/// </summary>
 		/// <param name="receiver">Получатель логов.</param>
 		/// <param name="order">Заявка.</param>
-		/// <param name="operation">Операция, которая проводится в заявокй.</param>
+		/// <param name="operation">Операция, которая проводится с заявкой.</param>
 		/// <param name="getAdditionalInfo">Дополнительная информация о заявке.</param>
 		public static void AddOrderErrorLog(this ILogReceiver receiver, Order order, string operation, Func<string> getAdditionalInfo = null)
 		{
@@ -3144,7 +3045,7 @@ namespace StockSharp.Algo
 		}
 
 		/// <summary>
-		/// Добавить изменение в коллекцию, если значение отлично от 0 и null.
+		/// Добавить изменение в коллекцию, если значение отлично от 0 и <see langword="null"/>.
 		/// </summary>
 		/// <typeparam name="TMessage">Тип сообщения с изменениями.</typeparam>
 		/// <typeparam name="TChange">Тип изменения.</typeparam>
@@ -3180,7 +3081,7 @@ namespace StockSharp.Algo
 		}
 
 		/// <summary>
-		/// Добавить изменение в коллекцию, если значение отлично от 0 и null.
+		/// Добавить изменение в коллекцию, если значение отлично от 0 и <see langword="null"/>.
 		/// </summary>
 		/// <typeparam name="TMessage">Тип сообщения с изменениями.</typeparam>
 		/// <typeparam name="TChange">Тип изменения.</typeparam>
@@ -3296,7 +3197,7 @@ namespace StockSharp.Algo
 		/// Получить шаг цены на основе точности.
 		/// </summary>
 		/// <param name="decimals">Точность.</param>
-		/// <returns>Шан цены.</returns>
+		/// <returns>Шаг цены.</returns>
 		public static decimal GetPriceStep(this int decimals)
 		{
 			return 1m / 10.Pow(decimals);
@@ -3498,6 +3399,466 @@ namespace StockSharp.Algo
 			{
 				OwnInputChannel = true
 			};
+		}
+
+		private const double _minValue = (double)decimal.MinValue;
+		private const double _maxValue = (double)decimal.MaxValue;
+
+		/// <summary>
+		/// Перевести <see cref="double"/> в <see cref="decimal"/>. Если исходное значение <see cref="double.IsNaN"/> или <see cref="double.IsInfinity"/>, то будет возвращено <see langword="null"/>.
+		/// </summary>
+		/// <param name="value"><see cref="double"/> значение.</param>
+		/// <returns><see cref="decimal"/> значение.</returns>
+		public static decimal? ToDecimal(this double value)
+		{
+			return value.IsInfinity() || value.IsNaN() || value < _minValue || value > _maxValue ? (decimal?)null : (decimal)value;
+		}
+
+		/// <summary>
+		/// Перевести <see cref="float"/> в <see cref="decimal"/>. Если исходное значение <see cref="float.IsNaN"/> или <see cref="float.IsInfinity"/>, то будет возвращено <see langword="null"/>.
+		/// </summary>
+		/// <param name="value"><see cref="float"/> значение.</param>
+		/// <returns><see cref="decimal"/> значение.</returns>
+		public static decimal? ToDecimal(this float value)
+		{
+			return value.IsInfinity() || value.IsNaN() || value < _minValue || value > _maxValue ? (decimal?)null : (decimal)value;
+		}
+
+		/// <summary>
+		/// Получить для инструмента тип в стандарте ISO 10962.
+		/// </summary>
+		/// <param name="security">Инструмент.</param>
+		/// <returns>Тип в стандарте ISO 10962.</returns>
+		public static string GetIso10962(this Security security)
+		{
+			if (security == null)
+				throw new ArgumentNullException("security");
+
+			// https://en.wikipedia.org/wiki/ISO_10962
+
+			switch (security.Type)
+			{
+				case SecurityTypes.Stock:
+					return "ESXXXX";
+				case SecurityTypes.Future:
+					return "FFXXXX";
+				case SecurityTypes.Option:
+				{
+					switch (security.OptionType)
+					{
+						case OptionTypes.Call:
+							return "OCXXXX";
+						case OptionTypes.Put:
+							return "OPXXXX";
+						case null:
+							return "OXXXXX";
+						default:
+							throw new ArgumentOutOfRangeException();
+					}
+				}
+				case SecurityTypes.Index:
+					return "MRIXXX";
+				case SecurityTypes.Currency:
+					return "MRCXXX";
+				case SecurityTypes.Bond:
+					return "DBXXXX";
+				case SecurityTypes.Warrant:
+					return "RWXXXX";
+				case SecurityTypes.Forward:
+					return "FFMXXX";
+				case SecurityTypes.Swap:
+					return "FFWXXX";
+				case SecurityTypes.Commodity:
+					return "MRTXXX";
+				case SecurityTypes.Cfd:
+					return "MMCXXX";
+				case SecurityTypes.Adr:
+					return "MMAXXX";
+				case SecurityTypes.News:
+					return "MMNXXX";
+				case SecurityTypes.Weather:
+					return "MMWXXX";
+				case SecurityTypes.Fund:
+					return "EUXXXX";
+				case SecurityTypes.CryptoCurrency:
+					return "MMBXXX";
+				case null:
+					return "XXXXXX";
+				default:
+					throw new ArgumentOutOfRangeException("security");
+			}
+		}
+
+		/// <summary>
+		/// Преобразовать тип в стандарте ISO 10962 в <see cref="SecurityTypes"/>.
+		/// </summary>
+		/// <param name="type">Тип в стандарте ISO 10962.</param>
+		/// <returns>Тип инструмента.</returns>
+		public static SecurityTypes? FromIso10962(string type)
+		{
+			if (type.IsEmpty())
+				throw new ArgumentNullException("type");
+
+			if (type.Length != 6)
+				throw new ArgumentOutOfRangeException("type", type, LocalizedStrings.Str2117);
+
+			switch (type[0])
+			{
+				case 'E':
+					return SecurityTypes.Stock;
+
+				case 'D':
+					return SecurityTypes.Bond;
+
+				case 'R':
+					return SecurityTypes.Warrant;
+
+				case 'O':
+					return SecurityTypes.Option;
+
+				case 'F':
+				{
+					switch (type[2])
+					{
+						case 'W':
+							return SecurityTypes.Swap;
+
+						case 'M':
+							return SecurityTypes.Forward;
+
+						default:
+							return SecurityTypes.Future;
+					}
+				}
+
+				case 'M':
+				{
+					switch (type[1])
+					{
+						case 'R':
+						{
+							switch (type[2])
+							{
+								case 'I':
+									return SecurityTypes.Index;
+
+								case 'C':
+									return SecurityTypes.Currency;
+
+								case 'T':
+									return SecurityTypes.Commodity;
+							}
+
+							break;
+						}
+
+						case 'M':
+						{
+							switch (type[2])
+							{
+								case 'B':
+									return SecurityTypes.CryptoCurrency;
+
+								case 'W':
+									return SecurityTypes.Weather;
+
+								case 'A':
+									return SecurityTypes.Adr;
+
+								case 'C':
+									return SecurityTypes.Cfd;
+
+								case 'N':
+									return SecurityTypes.News;
+							}
+
+							break;
+						}
+					}
+
+					break;
+				}
+			}
+
+			return null;
+		}
+
+		/// <summary>
+		/// Получить количество операции, или выбросить исключение, если информация отсутствует.
+		/// </summary>
+		/// <param name="message">Операции.</param>
+		/// <returns>Количество.</returns>
+		public static decimal SafeGetVolume(this ExecutionMessage message)
+		{
+			if (message == null)
+				throw new ArgumentNullException("message");
+
+			var volume = message.Volume;
+
+			if (volume != null)
+				return volume.Value;
+
+			var errorMsg = message.ExecutionType == ExecutionTypes.Tick || message.ExecutionType == ExecutionTypes.Trade
+				? LocalizedStrings.Str1022Params.Put((object)message.TradeId ?? message.TradeStringId)
+				: LocalizedStrings.Str927Params.Put((object)message.OrderId ?? message.OrderStringId);
+
+			throw new ArgumentOutOfRangeException("message", null, errorMsg);
+		}
+
+		/// <summary>
+		/// Получить идентификатор заявки, или выбросить исключение, если информация отсутствует.
+		/// </summary>
+		/// <param name="message">Операции.</param>
+		/// <returns>Идентификатор заявки.</returns>
+		public static long SafeGetOrderId(this ExecutionMessage message)
+		{
+			if (message == null)
+				throw new ArgumentNullException("message");
+
+			var orderId = message.OrderId;
+
+			if (orderId != null)
+				return orderId.Value;
+
+			throw new ArgumentOutOfRangeException("message", null, LocalizedStrings.Str925);
+		}
+
+		private class TickEnumerable : SimpleEnumerable<ExecutionMessage>, IEnumerableEx<ExecutionMessage>
+		{
+			private class TickEnumerator : IEnumerator<ExecutionMessage>
+			{
+				private readonly IEnumerator<Level1ChangeMessage> _level1Enumerator;
+
+				public TickEnumerator(IEnumerator<Level1ChangeMessage> level1Enumerator)
+				{
+					if (level1Enumerator == null)
+						throw new ArgumentNullException("level1Enumerator");
+
+					_level1Enumerator = level1Enumerator;
+				}
+
+				public ExecutionMessage Current { get; private set; }
+
+				bool IEnumerator.MoveNext()
+				{
+					while (_level1Enumerator.MoveNext())
+					{
+						var level1 = _level1Enumerator.Current;
+
+						if (!level1.IsContainsTick())
+							continue;
+
+						Current = level1.ToTick();
+						return true;
+					}
+
+					Current = null;
+					return false;
+				}
+
+				public void Reset()
+				{
+					_level1Enumerator.Reset();
+					Current = null;
+				}
+
+				object IEnumerator.Current
+				{
+					get { return Current; }
+				}
+
+				void IDisposable.Dispose()
+				{
+					Reset();
+					_level1Enumerator.Dispose();
+				}
+			}
+
+			private readonly IEnumerableEx<Level1ChangeMessage> _level1;
+
+			public TickEnumerable(IEnumerableEx<Level1ChangeMessage> level1)
+				: base(() => new TickEnumerator(level1.GetEnumerator()))
+			{
+				if (level1 == null)
+					throw new ArgumentNullException("level1");
+
+				_level1 = level1;
+			}
+
+			int IEnumerableEx.Count
+			{
+				get { return _level1.Count; }
+			}
+		}
+
+		/// <summary>
+		/// Преобразовать level1 данные в тиковые.
+		/// </summary>
+		/// <param name="level1">Level1 данные.</param>
+		/// <returns>Тиковые данные.</returns>
+		public static IEnumerableEx<ExecutionMessage> ToTicks(this IEnumerableEx<Level1ChangeMessage> level1)
+		{
+			return new TickEnumerable(level1);
+		}
+
+		/// <summary>
+		/// Проверить, если ли в level1 данных тиковые.
+		/// </summary>
+		/// <param name="level1">Level1 данные.</param>
+		/// <returns>Результат проверки.</returns>
+		public static bool IsContainsTick(this Level1ChangeMessage level1)
+		{
+			if (level1 == null)
+				throw new ArgumentNullException("level1");
+
+			return level1.Changes.ContainsKey(Level1Fields.LastTradePrice);
+		}
+
+		/// <summary>
+		/// Преобразовать level1 данные в тиковые.
+		/// </summary>
+		/// <param name="level1">Level1 данные.</param>
+		/// <returns>Тиковые данные.</returns>
+		public static ExecutionMessage ToTick(this Level1ChangeMessage level1)
+		{
+			if (level1 == null)
+				throw new ArgumentNullException("level1");
+
+			return new ExecutionMessage
+			{
+				ExecutionType = ExecutionTypes.Tick,
+				SecurityId = level1.SecurityId,
+				TradeId = (long?)level1.Changes.TryGetValue(Level1Fields.LastTradeId),
+				TradePrice = (decimal?)level1.Changes.TryGetValue(Level1Fields.LastTradePrice),
+				Volume = (decimal?)level1.Changes.TryGetValue(Level1Fields.LastTradeVolume),
+				OriginSide = (Sides?)level1.Changes.TryGetValue(Level1Fields.LastTradeOrigin),
+				ServerTime = (DateTimeOffset?)level1.Changes.TryGetValue(Level1Fields.LastTradeTime) ?? level1.ServerTime,
+				IsUpTick = (bool?)level1.Changes.TryGetValue(Level1Fields.LastTradeUpDown),
+				LocalTime = level1.LocalTime,
+			};
+		}
+
+		private class OrderBookEnumerable : SimpleEnumerable<QuoteChangeMessage>, IEnumerableEx<QuoteChangeMessage>
+		{
+			private class OrderBookEnumerator : IEnumerator<QuoteChangeMessage>
+			{
+				private readonly IEnumerator<Level1ChangeMessage> _level1Enumerator;
+
+				private decimal? _prevBidPrice;
+				private decimal? _prevBidVolume;
+				private decimal? _prevAskPrice;
+				private decimal? _prevAskVolume;
+
+				public OrderBookEnumerator(IEnumerator<Level1ChangeMessage> level1Enumerator)
+				{
+					if (level1Enumerator == null)
+						throw new ArgumentNullException("level1Enumerator");
+
+					_level1Enumerator = level1Enumerator;
+				}
+
+				public QuoteChangeMessage Current { get; private set; }
+
+				bool IEnumerator.MoveNext()
+				{
+					while (_level1Enumerator.MoveNext())
+					{
+						var level1 = _level1Enumerator.Current;
+
+						if (!level1.IsContainsQuotes())
+							continue;
+
+						var prevBidPrice = _prevBidPrice;
+						var prevBidVolume = _prevBidVolume;
+						var prevAskPrice = _prevAskPrice;
+						var prevAskVolume = _prevAskVolume;
+
+						_prevBidPrice = (decimal?)level1.Changes.TryGetValue(Level1Fields.BestBidPrice) ?? _prevBidPrice;
+						_prevBidVolume = (decimal?)level1.Changes.TryGetValue(Level1Fields.BestBidVolume) ?? _prevBidVolume;
+						_prevAskPrice = (decimal?)level1.Changes.TryGetValue(Level1Fields.BestAskPrice) ?? _prevAskPrice;
+						_prevAskVolume = (decimal?)level1.Changes.TryGetValue(Level1Fields.BestAskVolume) ?? _prevAskVolume;
+
+						if (_prevBidPrice == 0)
+							_prevBidPrice = null;
+
+						if (_prevAskPrice == 0)
+							_prevAskPrice = null;
+
+						if (prevBidPrice == _prevBidPrice && prevBidVolume == _prevBidVolume && prevAskPrice == _prevAskPrice && prevAskVolume == _prevAskVolume)
+							continue;
+
+						Current = new QuoteChangeMessage
+						{
+							SecurityId = level1.SecurityId,
+							LocalTime = level1.LocalTime,
+							ServerTime = level1.ServerTime,
+							Bids = _prevBidPrice == null ? Enumerable.Empty<QuoteChange>() : new[] { new QuoteChange(Sides.Buy, _prevBidPrice.Value, _prevBidVolume ?? 0) },
+							Asks = _prevAskPrice == null ? Enumerable.Empty<QuoteChange>() : new[] { new QuoteChange(Sides.Sell, _prevAskPrice.Value, _prevAskVolume ?? 0) },
+						};
+
+						return true;
+					}
+
+					Current = null;
+					return false;
+				}
+
+				public void Reset()
+				{
+					_level1Enumerator.Reset();
+					Current = null;
+				}
+
+				object IEnumerator.Current
+				{
+					get { return Current; }
+				}
+
+				void IDisposable.Dispose()
+				{
+					Reset();
+					_level1Enumerator.Dispose();
+				}
+			}
+
+			private readonly IEnumerableEx<Level1ChangeMessage> _level1;
+
+			public OrderBookEnumerable(IEnumerableEx<Level1ChangeMessage> level1)
+				: base(() => new OrderBookEnumerator(level1.GetEnumerator()))
+			{
+				if (level1 == null)
+					throw new ArgumentNullException("level1");
+
+				_level1 = level1;
+			}
+
+			int IEnumerableEx.Count
+			{
+				get { return _level1.Count; }
+			}
+		}
+
+		/// <summary>
+		/// Преобразовать level1 данные в стаканы.
+		/// </summary>
+		/// <param name="level1">Level1 данные.</param>
+		/// <returns>Стаканы.</returns>
+		public static IEnumerableEx<QuoteChangeMessage> ToOrderBooks(this IEnumerableEx<Level1ChangeMessage> level1)
+		{
+			return new OrderBookEnumerable(level1);
+		}
+
+		/// <summary>
+		/// Проверить, если ли в level1 котировки.
+		/// </summary>
+		/// <param name="level1">Level1 данные.</param>
+		/// <returns>Котировки.</returns>
+		public static bool IsContainsQuotes(this Level1ChangeMessage level1)
+		{
+			if (level1 == null)
+				throw new ArgumentNullException("level1");
+
+			return level1.Changes.ContainsKey(Level1Fields.BestBidPrice) || level1.Changes.ContainsKey(Level1Fields.BestAskPrice);
 		}
 	}
 }

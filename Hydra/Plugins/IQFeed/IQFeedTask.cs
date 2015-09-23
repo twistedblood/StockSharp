@@ -8,7 +8,6 @@ namespace StockSharp.Hydra.IQFeed
 
 	using Ecng.Collections;
 	using Ecng.Common;
-	using Ecng.Xaml;
 
 	using StockSharp.Algo;
 	using StockSharp.Algo.Candles;
@@ -22,8 +21,13 @@ namespace StockSharp.Hydra.IQFeed
 
 	using Xceed.Wpf.Toolkit.PropertyGrid.Attributes;
 
-	[Category(TaskCategories.American)]
-	[TaskDisplayName(_sourceName)]
+	[DisplayNameLoc(_sourceName)]
+	[DescriptionLoc(LocalizedStrings.Str2281ParamsKey, _sourceName)]
+	[TaskDoc("http://stocksharp.com/doc/html/f9e23239-7587-41ad-9644-c6df8e467c38.htm")]
+	[TaskIcon("iqfeed_logo.png")]
+	[TaskCategory(TaskCategories.America | TaskCategories.RealTime | TaskCategories.History |
+		TaskCategories.Paid | TaskCategories.Ticks | TaskCategories.MarketDepth |
+		TaskCategories.Level1 | TaskCategories.Candles | TaskCategories.Stock | TaskCategories.Forex)]
 	class IQFeedTask : ConnectorHydraTask<IQFeedTrader>
 	{
 		private const string _sourceName = "IQFeed";
@@ -87,7 +91,7 @@ namespace StockSharp.Hydra.IQFeed
 				}
 			}
 
-			[CategoryLoc(LocalizedStrings.Str2534Key)]
+			[CategoryLoc(LocalizedStrings.Str174Key)]
 			[DisplayNameLoc(LocalizedStrings.Str2541Key)]
 			[DescriptionLoc(LocalizedStrings.Str2542Key)]
 			[PropertyOrder(0)]
@@ -97,7 +101,7 @@ namespace StockSharp.Hydra.IQFeed
 				set { ExtensionInfo["Level1Address"] = value.To<string>(); }
 			}
 
-			[CategoryLoc(LocalizedStrings.Str2534Key)]
+			[CategoryLoc(LocalizedStrings.Str174Key)]
 			[DisplayNameLoc(LocalizedStrings.Str2543Key)]
 			[DescriptionLoc(LocalizedStrings.Str2544Key)]
 			[PropertyOrder(1)]
@@ -107,7 +111,7 @@ namespace StockSharp.Hydra.IQFeed
 				set { ExtensionInfo["Level2Address"] = value.To<string>(); }
 			}
 
-			[CategoryLoc(LocalizedStrings.Str2534Key)]
+			[CategoryLoc(LocalizedStrings.Str174Key)]
 			[DisplayNameLoc(LocalizedStrings.Str2545Key)]
 			[DescriptionLoc(LocalizedStrings.Str2546Key)]
 			[PropertyOrder(2)]
@@ -117,7 +121,7 @@ namespace StockSharp.Hydra.IQFeed
 				set { ExtensionInfo["LookupAddress"] = value.To<string>(); }
 			}
 
-			[CategoryLoc(LocalizedStrings.Str2534Key)]
+			[CategoryLoc(LocalizedStrings.Str174Key)]
 			[DisplayNameLoc(LocalizedStrings.Str2547Key)]
 			[DescriptionLoc(LocalizedStrings.Str2548Key)]
 			[PropertyOrder(3)]
@@ -127,7 +131,7 @@ namespace StockSharp.Hydra.IQFeed
 				set { ExtensionInfo["AdminAddress"] = value.To<string>(); }
 			}
 
-			[CategoryLoc(LocalizedStrings.Str2533Key)]
+			[CategoryLoc(LocalizedStrings.HistoryKey)]
 			[DisplayNameLoc(LocalizedStrings.Str2282Key)]
 			[DescriptionLoc(LocalizedStrings.Str2283Key)]
 			[PropertyOrder(0)]
@@ -137,7 +141,7 @@ namespace StockSharp.Hydra.IQFeed
 				set { ExtensionInfo["StartFrom"] = value; }
 			}
 
-			[CategoryLoc(LocalizedStrings.Str2533Key)]
+			[CategoryLoc(LocalizedStrings.HistoryKey)]
 			[DisplayNameLoc(LocalizedStrings.Str2284Key)]
 			[DescriptionLoc(LocalizedStrings.Str2285Key)]
 			[PropertyOrder(1)]
@@ -147,7 +151,7 @@ namespace StockSharp.Hydra.IQFeed
 				set { ExtensionInfo["Offset"] = value; }
 			}
 
-			[CategoryLoc(LocalizedStrings.Str2533Key)]
+			[CategoryLoc(LocalizedStrings.HistoryKey)]
 			[DisplayNameLoc(LocalizedStrings.Str2286Key)]
 			[DescriptionLoc(LocalizedStrings.Str2287Key)]
 			[PropertyOrder(2)]
@@ -174,16 +178,6 @@ namespace StockSharp.Hydra.IQFeed
 				CandleType = typeof(TimeFrameCandle),
 				Arg = tf
 			}).ToArray();
-		}
-
-		public override string Description
-		{
-			get { return LocalizedStrings.Str2281Params.Put(_sourceName); }
-		}
-
-		public override Uri Icon
-		{
-			get { return "iqfeed_logo.png".GetResourceUrl(GetType()); }
 		}
 
 		private readonly Type[] _supportedMarketDataTypes = { typeof(Candle), typeof(MarketDepth), typeof(Level1ChangeMessage) };
@@ -216,7 +210,7 @@ namespace StockSharp.Hydra.IQFeed
 				_settings.LookupAddress = IQFeedAddresses.DefaultLookupAddress;
 				_settings.AdminAddress = IQFeedAddresses.DefaultAdminAddress;
 				_settings.Offset = 0;
-				_settings.StartFrom = DateTime.Today;
+				_settings.StartFrom = DateTime.Today.Subtract(TimeSpan.FromDays(30));
 				_settings.IsDownloadSecurityFromSite = false;
 				_settings.IsDownloadNews = true;
 				_settings.Types = new[] { SecurityTypes.Stock };
@@ -292,7 +286,7 @@ namespace StockSharp.Hydra.IQFeed
 						this.AddInfoLog(LocalizedStrings.Str2294Params, date, security.Security.Id);
 
 						bool isSuccess;
-						var trades = Connector.Connector.GetHistoricalLevel1(security.Security.ToSecurityId(), _settings.StartFrom, _settings.StartFrom.EndOfDay(), out isSuccess);
+						var trades = Connector.Connector.GetHistoricalLevel1(security.Security.ToSecurityId(), date, date.EndOfDay(), out isSuccess);
 
 						if (isSuccess)
 						{

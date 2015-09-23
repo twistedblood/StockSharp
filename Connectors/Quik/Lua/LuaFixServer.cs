@@ -37,6 +37,9 @@ namespace StockSharp.Quik.Lua
 
 			public void AddTransactionId(long transactionId)
 			{
+				if (transactionId == 0)
+					throw new ArgumentNullException("transactionId");
+
 				this.AddInfoLog("Added trans id {0} mapping.", transactionId);
 				_transactionIds.Add(transactionId);
 			}
@@ -65,12 +68,12 @@ namespace StockSharp.Quik.Lua
 
 			protected override bool ReadOrderCondition(IFixReader reader, FixTags tag, Func<OrderCondition> getCondition)
 			{
-				return reader.ReadOrderCondition(tag, TimeHelper.Moscow.BaseUtcOffset, () => (QuikOrderCondition)getCondition());
+				return reader.ReadOrderCondition(tag, TimeHelper.Moscow, TransactionSession.DateTimeFormat, () => (QuikOrderCondition)getCondition());
 			}
 
 			protected override void WriterFixOrderCondition(IFixWriter writer, ExecutionMessage message)
 			{
-				writer.WriteOrderCondition((QuikOrderCondition)message.Condition);
+				writer.WriteOrderCondition((QuikOrderCondition)message.Condition, TransactionSession.DateTimeFormat);
 			}
 		}
 
@@ -191,18 +194,13 @@ namespace StockSharp.Quik.Lua
 				}
 			};
 
-			_fixServer.TransactionSession.UtcOffset = TimeHelper.Moscow.BaseUtcOffset;
+			_fixServer.TransactionSession.TimeZone = TimeHelper.Moscow;
 
 			_logManager.Application = new QuikNativeApp();
 
 			_logManager.Sources.Add(_fixServer);
 
 			LogFile = "StockSharp.QuikLua.log";
-
-			var path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-			var logFileName = Path.Combine(path, LogFile);
-
-			_logManager.Listeners.Add(new FileLogListener(logFileName));
 		}
 
 		private void ProcessMarketDataMessage(MarketDataMessage message)
@@ -315,11 +313,41 @@ namespace StockSharp.Quik.Lua
 			set { _fixServer.MarketDataSession.IncrementalDepthUpdates = value; }
 		}
 
-		// TODO
+		private FileLogListener _prevFileLogListener;
+		private string _logFile;
+
 		/// <summary>
 		/// Название текстового файла, в который будут писаться логи.
 		/// </summary>
-		public string LogFile { get; set; }
+		public string LogFile
+		{
+			get { return _logFile; }
+			set
+			{				
+				if (_logFile.CompareIgnoreCase(value))
+					return;
+
+				if (_prevFileLogListener != null)
+				{
+					_logManager.Listeners.Remove(_prevFileLogListener);
+					_prevFileLogListener.Dispose();
+					_prevFileLogListener = null;
+				}
+
+				_logFile = value;
+
+				if (_logFile.IsEmpty())
+					return;
+
+				var path = _logFile;
+
+				if (!Path.IsPathRooted(_logFile))
+					path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), path);
+
+				_prevFileLogListener = new FileLogListener(path);
+				_logManager.Listeners.Add(_prevFileLogListener);
+			}
+		}
 
 		/// <summary>
 		/// Уровень логирования для Lua.
@@ -381,15 +409,6 @@ namespace StockSharp.Quik.Lua
 				SecurityCode = securityId.SecurityCode,
 				BoardCode = GetBoardCode(securityId.BoardCode)
 			});
-		}
-
-		/// <summary>
-		/// Добавить ассоциацию идентификатора запроса и транзакции.
-		/// </summary>
-		/// <param name="transactionId">Идентификатор транзакции.</param>
-		public void AddTransactionId(long transactionId)
-		{
-			_fixServer.AddTransactionId(transactionId);
 		}
 
 		/// <summary>
@@ -467,6 +486,24 @@ namespace StockSharp.Quik.Lua
 
 					if (execMsg.ExecutionType == ExecutionTypes.Order)
 					{
+						if (execMsg.OrderId != null)
+						{
+							if (execMsg.TransactionId == 0)
+							{
+								// TODO
+
+								// автоинкремент проставляется для ручных заявок, но возникает баг,
+								// что и для заявок робота может приходить нулевой идентификатор
+								// https://forum.quik.ru/forum10/topic870/
+								//
+								//	execMsg.TransactionId = GetNextTransactionId();
+							}
+							else
+								_fixServer.AddTransactionId(execMsg.TransactionId);
+
+							_fixServer.AddTransactionId(execMsg.OriginalTransactionId);
+						}
+
 						var transaction = _transactions.TryGetValue(execMsg.OriginalTransactionId);
 
 						if (transaction != null && execMsg.Error != null)

@@ -89,6 +89,11 @@ namespace StockSharp.Algo
 			get { return _innerAdapter.SecurityLookupRequired; }
 		}
 
+		string IMessageAdapter.AssociatedBoardCode
+		{
+			get { return _innerAdapter.AssociatedBoardCode; }
+		}
+
 		OrderCondition IMessageAdapter.CreateOrderCondition()
 		{
 			return _innerAdapter.CreateOrderCondition();
@@ -97,6 +102,11 @@ namespace StockSharp.Algo
 		bool IMessageAdapter.IsConnectionAlive()
 		{
 			return _innerAdapter.IsConnectionAlive();
+		}
+
+		IOrderLogMarketDepthBuilder IMessageAdapter.CreateOrderLogMarketDepthBuilder(SecurityId securityId)
+		{
+			return _innerAdapter.CreateOrderLogMarketDepthBuilder(securityId);
 		}
 
 		IDictionary<string, RefPair<SecurityTypes, string>> IMessageAdapter.SecurityClassInfo

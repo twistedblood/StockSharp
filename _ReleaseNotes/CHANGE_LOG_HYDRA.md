@@ -1,5 +1,58 @@
 StockSharp Data (Hydra) Change log
 ========================
+###v4.3.11:
+* (bug) Config fix.
+* (bug) Chart pane fix.
+* (feature) Transaq. v2.16.1
+* (feature) Level1 export improved.
+* (feature) Build level1 -> depths.
+* (bug) DateTime to DateTimeOffset casting fix.
+* (feature) Storage (bin). Allow different time zones.
+* (feature) Leve1 -> Ticks + Candles.
+* (bug) IQFeed fix.
+* (bug) NewsSerializer fix.
+* (feature) AdvertisePanel changes.
+
+###v4.3.10:
+* (bug) Hydra. Level1 csv export fix.
+* (bug) Storage. Level1 fix.
+* (bug) ITCH fixes.
+* (bug) LocalMarketDataDrive.Dates fix.
+* (bug) CsvMarketDataSerializer. Fix BOM char.
+* (feature) Grids. TimeZone column
+* (bug) FIX connector. Fix ExecMsg.ServerTime
+* (feature) Hydra. Export csv. Header.
+* (feature) Hydra. SourcesWindow. Find by name.
+* (feature) AdvertisePanel.
+* (bug) Hydra. Depth csv export fix.
+
+###v4.3.9.1:
+* (feature) Hydra. Import pane improve.
+* (bug) Release 4.3.9 fix (missed files).
+
+###v4.3.9:
+* (feature) Backup plugin (Amazon S3 cloud storage)
+* (feature) Txt/csv export preview window.
+* (feature) Edit txt/csv export templates.
+* (feature) Task categories. Filterable task creation.
+* (bug) Fix txt/csv level1 export.
+* (bug) Fix sync directories.
+* (bug) Task settings serialization fix.
+* (feature) Help buttons.
+* (bug) Fix time bounds log.
+
+###v4.3.8:
+* (feature) BarChart (history mode).
+* (bug) Excel export boost.
+* (bug) CSV storage fix.
+* (bug) Storage. Fix delete range
+* (bug) Auto save config fix.
+* (bug) Help url fix.
+* (feature) Storage. Date cache bin->txt format.
+* (bug) CSV storage. Fix save NewsMessage.SecurityId.
+* (bug) CSV storage. Fix append data with same time for order log and tick trades.
+* (feature) Edit Security.Decimals.
+
 ###v4.3.7:
 * (bug) Fix https://github.com/StockSharp/StockSharp/issues/95
 

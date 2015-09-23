@@ -13,7 +13,7 @@ namespace StockSharp.Algo.Candles
 	public interface IExternalCandleSource
 	{
 		/// <summary>
-		/// ѕолучить временные диапазоны, дл€ которых у данного источниках дл€ передаваемой серии свечек есть данные.
+		/// ѕолучить временные диапазоны, дл€ которых у данного источника дл€ передаваемой серии свечек есть данные.
 		/// </summary>
 		/// <param name="series">—ери€ свечек.</param>
 		/// <returns>¬ременные диапазоны.</returns>
@@ -23,6 +23,11 @@ namespace StockSharp.Algo.Candles
 		/// —обытие по€влени€ новых свечек, полученных после подписки через <see cref="SubscribeCandles"/>.
 		/// </summary>
 		event Action<CandleSeries, IEnumerable<Candle>> NewCandles;
+
+		/// <summary>
+		/// —обытие окончани€ обработки серии.
+		/// </summary>
+		event Action<CandleSeries> Stopped;
 
 		/// <summary>
 		/// ѕодписатьс€ на получение свечек.

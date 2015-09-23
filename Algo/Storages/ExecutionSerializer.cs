@@ -28,6 +28,11 @@ namespace StockSharp.Algo.Storages
 			Errors = new List<string>();
 		}
 
+		public override object LastId
+		{
+			get { return LastTransactionId; }
+		}
+
 		public long FirstOrderId { get; set; }
 		public long LastOrderId { get; set; }
 
@@ -82,6 +87,11 @@ namespace StockSharp.Algo.Storages
 				return;
 
 			stream.Write(ServerOffset);
+
+			if (Version < MarketDataVersions.Version56)
+				return;
+
+			WriteOffsets(stream);
 		}
 
 		private static void WriteList(Stream stream, IList<string> list)
@@ -131,9 +141,14 @@ namespace StockSharp.Algo.Storages
 				return;
 
 			ServerOffset = stream.Read<TimeSpan>();
+
+			if (Version < MarketDataVersions.Version56)
+				return;
+
+			ReadOffsets(stream);
 		}
 
-		protected override void CopyFrom(ExecutionSerializerMetaInfo src)
+		public override void CopyFrom(ExecutionSerializerMetaInfo src)
 		{
 			base.CopyFrom(src);
 
@@ -169,7 +184,7 @@ namespace StockSharp.Algo.Storages
 		public ExecutionSerializer(SecurityId securityId)
 			: base(securityId, 200)
 		{
-			Version = MarketDataVersions.Version54;
+			Version = MarketDataVersions.Version56;
 		}
 
 		protected override void OnSave(BitArrayWriter writer, IEnumerable<ExecutionMessage> messages, ExecutionSerializerMetaInfo metaInfo)
@@ -190,6 +205,7 @@ namespace StockSharp.Algo.Storages
 
 			var allowNonOrdered = metaInfo.Version >= MarketDataVersions.Version48;
 			var isUtc = metaInfo.Version >= MarketDataVersions.Version51;
+			var allowDiffOffsets = metaInfo.Version >= MarketDataVersions.Version56;
 
 			foreach (var msg in messages)
 			{
@@ -206,7 +222,7 @@ namespace StockSharp.Algo.Storages
 				if (msg.Price < 0)
 					throw new ArgumentOutOfRangeException("messages", msg.Price, LocalizedStrings.Str926Params.Put(msg.OrderId == null ? msg.OrderStringId : msg.OrderId.To<string>()));
 
-				var volume = msg.GetVolume();
+				var volume = msg.SafeGetVolume();
 
 				if (volume < 0)
 					throw new ArgumentOutOfRangeException("messages", volume, LocalizedStrings.Str927Params.Put(msg.OrderId == null ? msg.OrderStringId : msg.OrderId.To<string>()));
@@ -296,7 +312,9 @@ namespace StockSharp.Algo.Storages
 						writer.WriteVolume(msg.Balance.Value, metaInfo, SecurityId);
 				}
 
-				metaInfo.LastTime = writer.WriteTime(msg.ServerTime, metaInfo.LastTime, LocalizedStrings.Str930, allowNonOrdered, isUtc, metaInfo.ServerOffset);
+				var lastOffset = metaInfo.LastServerOffset;
+				metaInfo.LastTime = writer.WriteTime(msg.ServerTime, metaInfo.LastTime, LocalizedStrings.Str930, allowNonOrdered, isUtc, metaInfo.ServerOffset, allowDiffOffsets, ref lastOffset);
+				metaInfo.LastServerOffset = lastOffset;
 
 				writer.WriteInt((int)msg.OrderType);
 
@@ -336,6 +354,14 @@ namespace StockSharp.Algo.Storages
 				WriteString(writer, metaInfo.StrategyIds, msg.UserOrderId);
 				WriteString(writer, metaInfo.Comments, msg.Comment);
 				WriteString(writer, metaInfo.Errors, msg.Error != null ? msg.Error.Message : null);
+
+				if (metaInfo.Version < MarketDataVersions.Version55)
+					continue;
+
+				writer.Write(msg.Currency != null);
+
+				if (msg.Currency != null)
+					writer.WriteInt((int)msg.Currency.Value);
 			}
 		}
 
@@ -401,10 +427,13 @@ namespace StockSharp.Algo.Storages
 
 			var allowNonOrdered = metaInfo.Version >= MarketDataVersions.Version48;
 			var isUtc = metaInfo.Version >= MarketDataVersions.Version51;
+			var allowDiffOffsets = metaInfo.Version >= MarketDataVersions.Version56;
 
 			var prevTime = metaInfo.FirstTime;
-			var serverTime = reader.ReadTime(ref prevTime, allowNonOrdered, isUtc, metaInfo.GetTimeZone(isUtc, SecurityId));
+			var lastOffset = metaInfo.FirstServerOffset;
+			var serverTime = reader.ReadTime(ref prevTime, allowNonOrdered, isUtc, metaInfo.GetTimeZone(isUtc, SecurityId), allowDiffOffsets, ref lastOffset);
 			metaInfo.FirstTime = prevTime;
+			metaInfo.FirstServerOffset = lastOffset;
 
 			var type = reader.ReadInt().To<OrderTypes>();
 
@@ -483,6 +512,12 @@ namespace StockSharp.Algo.Storages
 
 			if (!error.IsEmpty())
 				msg.Error = new InvalidOperationException(error);
+
+			if (metaInfo.Version >= MarketDataVersions.Version55)
+			{
+				if (reader.Read())
+					msg.Currency = (CurrencyTypes)reader.ReadInt();
+			}
 
 			return msg;
 		}

@@ -61,7 +61,8 @@ namespace StockSharp.Algo.Testing
 		private sealed class SecurityMarketEmulator : BaseLogReceiver//, IMarketEmulator
 		{
 			private readonly MarketEmulator _parent;
-			
+			private readonly SecurityId _securityId;
+
 			private readonly Dictionary<ExecutionMessage, TimeSpan> _expirableOrders = new Dictionary<ExecutionMessage, TimeSpan>();
 			private readonly Dictionary<long, ExecutionMessage> _activeOrders = new Dictionary<long, ExecutionMessage>();
 			private readonly SortedDictionary<decimal, RefPair<List<ExecutionMessage>, QuoteChange>> _bids = new SortedDictionary<decimal, RefPair<List<ExecutionMessage>, QuoteChange>>(new BackwardComparer<decimal>());
@@ -89,7 +90,8 @@ namespace StockSharp.Algo.Testing
 					throw new ArgumentNullException("parent");
 
 				_parent = parent;
-				_execLogConverter = new ExecutionLogConverter(securityId, _bids, _asks, _parent.Settings);
+				_securityId = securityId;
+				_execLogConverter = new ExecutionLogConverter(securityId, _bids, _asks, _parent.Settings, GetServerTime);
 			}
 
 			public IEnumerable<Message> Process(Message message)
@@ -219,8 +221,9 @@ namespace StockSharp.Algo.Testing
 							else if (execMsg.IsCancelled)
 							{
 								var error = LocalizedStrings.Str1148Params.Put(execMsg.OrderId);
+								var serverTime = GetServerTime(orderMsg.LocalTime);
 
-								// ошибка отмены
+								// cancellation error
 								result.Add(new ExecutionMessage
 								{
 									LocalTime = orderMsg.LocalTime,
@@ -231,9 +234,10 @@ namespace StockSharp.Algo.Testing
 									IsCancelled = true,
 									OrderState = OrderStates.Failed,
 									Error = new InvalidOperationException(error),
+									ServerTime = serverTime
 								});
 
-								// ошибка регистрации
+								// registration error
 								result.Add(new ExecutionMessage
 								{
 									LocalTime = orderMsg.LocalTime,
@@ -243,6 +247,7 @@ namespace StockSharp.Algo.Testing
 									IsCancelled = false,
 									OrderState = OrderStates.Failed,
 									Error = new InvalidOperationException(error),
+									ServerTime = serverTime
 								});
 
 								this.AddErrorLog(LocalizedStrings.Str1148Params, orderMsg.OldTransactionId);
@@ -257,7 +262,15 @@ namespace StockSharp.Algo.Testing
 						var quoteMsg = (QuoteChangeMessage)message;
 
 						foreach (var m in _execLogConverter.ToExecutionLog(quoteMsg))
-							Process(m, result);
+						{
+							if (m.ExecutionType == ExecutionTypes.Tick)
+							{
+								m.ServerTime = quoteMsg.ServerTime;
+								result.Add(m);
+							}
+							else
+								Process(m, result);
+						}
 
 						// возращаем не входящий стакан, а тот, что сейчас хранится внутри эмулятора.
 						// таким образом мы можем видеть в стакане свои цены и объемы
@@ -292,7 +305,7 @@ namespace StockSharp.Algo.Testing
 
 					case MessageTypes.Board:
 					{
-						_execLogConverter.UpdateBoardDefinition((BoardMessage)message);
+						//_execLogConverter.UpdateBoardDefinition((BoardMessage)message);
 						break;
 					}
 
@@ -312,7 +325,7 @@ namespace StockSharp.Algo.Testing
 
 						info.Item1.Add((CandleMessage)candleMsg.Clone());
 
-						if (_securityDefinition != null && _parent._settings.UseCandlesTimeFrame != null)
+						if (_securityDefinition != null/* && _parent._settings.UseCandlesTimeFrame != null*/)
 						{
 							var trades = candleMsg.ToTrades(GetVolumeStep(), _volumeDecimals).ToArray();
 							Process(trades[0], result);
@@ -521,7 +534,7 @@ namespace StockSharp.Algo.Testing
 						result.Add(CreateQuoteMessage(
 							replyMsg.SecurityId,
 							time,
-							time));
+							GetServerTime(time)));
 
 						result.Add(replyMsg);
 
@@ -585,7 +598,7 @@ namespace StockSharp.Algo.Testing
 							result.Add(CreateQuoteMessage(
 								replyMsg.SecurityId,
 								time,
-								time));
+								GetServerTime(time)));
 						}
 					}
 					else
@@ -845,17 +858,15 @@ namespace StockSharp.Algo.Testing
 
 					info.ProcessMyTrade(tradeMsg, result);
 
-					var tickTime = (_parent.Settings.ConvertTime) ? ConvertTime(time, tradeMsg.SecurityId) : time;
-
 					result.Add(new ExecutionMessage
 					{
-						LocalTime = tickTime,
+						LocalTime = time,
 						SecurityId = tradeMsg.SecurityId,
 						TradeId = tradeMsg.TradeId,
 						TradePrice = tradeMsg.TradePrice,
 						Volume = tradeMsg.Volume,
 						ExecutionType = ExecutionTypes.Tick,
-						ServerTime = tickTime,
+						ServerTime = GetServerTime(time),
 					});
 				}
 			}
@@ -903,9 +914,7 @@ namespace StockSharp.Algo.Testing
 						foreach (var trade in pair.Value.Item2)
 							Process(trade, result);
 
-						// добавляем сами свечи
-						// esper. эти данные уходят в BaseTrader, а он не умеет работать со свечами, а в EmuTrader свеча уже обработана.
-						//result.AddRange(pair.Value.Item1);
+						result.AddRange(pair.Value.Item1);
 					}
 				}
 			}
@@ -938,7 +947,7 @@ namespace StockSharp.Algo.Testing
 						result.Add(CreateQuoteMessage(
 							orderMsg.SecurityId,
 							message.LocalTime,
-							message.LocalTime));
+							GetServerTime(message.LocalTime)));
 					}
 					else
 						_expirableOrders[orderMsg] = left;
@@ -961,7 +970,7 @@ namespace StockSharp.Algo.Testing
 
 				var level = pair.First;
 
-				var volume = message.GetVolume();
+				var volume = message.SafeGetVolume();
 
 				if (register)
 				{
@@ -1088,9 +1097,6 @@ namespace StockSharp.Algo.Testing
 
 			private ExecutionMessage ToOrder(DateTime time, ExecutionMessage message)
 			{
-				if (_parent.Settings.ConvertTime)
-					time = ConvertTime(time, message.SecurityId);
-
 				return new ExecutionMessage
 				{
 					LocalTime = time,
@@ -1101,15 +1107,12 @@ namespace StockSharp.Algo.Testing
 					OrderState = message.OrderState,
 					PortfolioName = message.PortfolioName,
 					ExecutionType = ExecutionTypes.Order,
-					ServerTime = time,
+					ServerTime = GetServerTime(time),
 				};
 			}
 
 			private ExecutionMessage ToMyTrade(DateTime time, ExecutionMessage message, decimal price, decimal volume)
 			{
-				if (_parent.Settings.ConvertTime)
-					time = ConvertTime(time, message.SecurityId);
-
 				return new ExecutionMessage
 				{
 					LocalTime = time,
@@ -1120,21 +1123,32 @@ namespace StockSharp.Algo.Testing
 					TradePrice = price,
 					Volume = volume,
 					ExecutionType = ExecutionTypes.Trade,
-					ServerTime = time,
+					ServerTime = GetServerTime(time),
 					Side = message.Side,
 				};
 			}
 
-			private DateTime ConvertTime(DateTime time, SecurityId securityId)
+			private DateTimeOffset GetServerTime(DateTime time)
 			{
-				var board = _parent._boardDefinitions.TryGetValue(securityId.BoardCode);
+				if (!_parent.Settings.ConvertTime)
+					return time;
 
-				if (board == null)
+				var destTimeZone = _parent.Settings.TimeZone;
+
+				if (destTimeZone == null)
+				{
+					var board = _parent._boardDefinitions.TryGetValue(_securityId.BoardCode);
+
+					if (board != null)
+						destTimeZone = board.TimeZoneInfo;	
+				}
+
+				if (destTimeZone == null)
 					return time;
 
 				var sourceZone = time.Kind == DateTimeKind.Utc ? TimeZoneInfo.Utc : TimeZoneInfo.Local;
 
-				return TimeZoneInfo.ConvertTime(time, sourceZone, board.TimeZoneInfo);
+				return TimeZoneInfo.ConvertTime(time, sourceZone, destTimeZone).ApplyTimeZone(destTimeZone);
 			}
 
 			public decimal? GetBestPrice(Sides side)
@@ -1229,7 +1243,7 @@ namespace StockSharp.Algo.Testing
 				var totalPos = pos.First + pos.Second;
 
 				if (register)
-					pos.Second += orderMsg.GetVolume() * sign;
+					pos.Second += orderMsg.SafeGetVolume() * sign;
 				else
 					pos.Second -= orderMsg.GetBalance() * sign;
 
@@ -1340,7 +1354,7 @@ namespace StockSharp.Algo.Testing
 				var reqMoney = GetRequiredMoney(execMsg.SecurityId, execMsg.Side, execMsg.Price);
 
 				// если задан баланс, то проверям по нему (для частично исполненных заявок)
-				var volume = execMsg.Balance ?? execMsg.GetVolume();
+				var volume = execMsg.Balance ?? execMsg.SafeGetVolume();
 
 				var pos = _positions.SafeAdd(execMsg.SecurityId, k => RefTuple.Create(0m, 0m));
 
@@ -1728,7 +1742,7 @@ namespace StockSharp.Algo.Testing
 				if (execMsg.OrderType == OrderTypes.Market && !board.IsSupportMarketOrders)
 					return LocalizedStrings.Str1170Params.Put(board.Code);
 
-				if (!board.WorkingTime.IsTradeTime(execMsg.ServerTime.Convert(board.TimeZoneInfo).DateTime))
+				if (!board.IsTradeTime(execMsg.ServerTime))
 					return LocalizedStrings.Str1171;
 			}
 

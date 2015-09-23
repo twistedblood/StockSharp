@@ -85,7 +85,7 @@ namespace StockSharp.Algo.Risk
 	/// <summary>
 	/// Риск-правило, отслеживающее прибыль-убыток.
 	/// </summary>
-	[DisplayName("P&L")]
+	[DisplayNameLoc(LocalizedStrings.PnLKey)]
 	[DescriptionLoc(LocalizedStrings.Str860Key)]
 	public class RiskPnLRule : RiskRule
 	{
@@ -94,7 +94,7 @@ namespace StockSharp.Algo.Risk
 		/// <summary>
 		/// Прибыль-убыток.
 		/// </summary>
-		[DisplayName("P&L")]
+		[DisplayNameLoc(LocalizedStrings.PnLKey)]
 		[DescriptionLoc(LocalizedStrings.Str861Key)]
 		[CategoryLoc(LocalizedStrings.GeneralKey)]
 		public decimal PnL
@@ -235,7 +235,7 @@ namespace StockSharp.Algo.Risk
 		/// <summary>
 		/// Время жизни позиции.
 		/// </summary>
-		[DisplayNameLoc(LocalizedStrings.Str219Key)]
+		[DisplayNameLoc(LocalizedStrings.TimeKey)]
 		[DescriptionLoc(LocalizedStrings.Str867Key)]
 		[CategoryLoc(LocalizedStrings.GeneralKey)]
 		public TimeSpan Time

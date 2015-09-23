@@ -76,7 +76,18 @@
 
 			LogsDir = Path.Combine(BaseApplication.AppDataPath, "Logs");
 
-			_timerToken = GuiDispatcher.GlobalDispatcher.AddPeriodicalAction(Save);
+			_timerToken = GuiDispatcher.GlobalDispatcher.AddPeriodicalAction(() =>
+			{
+				lock (_timerSync)
+				{
+					if (!_needToSave)
+						return;
+
+					_needToSave = false;
+				}
+
+				Save();
+			});
 		}
 
 		// после обфускации название типа нечитаемо
@@ -89,14 +100,6 @@
 		{
 			try
 			{
-				lock (_timerSync)
-				{
-					if (!_needToSave)
-						return;
-
-					_needToSave = false;
-				}
-
 				CultureInfo.InvariantCulture.DoInCulture(() =>
 				{
 					var root = new SettingsStorage();
@@ -119,7 +122,7 @@
 					navBar.SetValue("Width", MainWindow.NavigationBar.ContentWidth);
 					navBar.SetValue("SelectedPane", MainWindow.NavigationBar.SelectedIndex);
 					navBar.SetValue("SelectedSource", MainWindow.CurrentSources.SelectedIndex);
-					navBar.SetValue("SelectedConverter", MainWindow.CurrentConverters.SelectedIndex);
+					navBar.SetValue("SelectedTool", MainWindow.CurrentTools.SelectedIndex);
 
 					root.SetValue("navBar", navBar);
 
@@ -127,7 +130,12 @@
 
 					foreach (var paneWnd in MainWindow.DockSite.DocumentWindows.OfType<PaneWindow>())
 					{
-						var settings = paneWnd.Pane.SaveEntire(false);
+						var pane = paneWnd.Pane;
+
+						if (!pane.IsValid)
+							continue;
+
+						var settings = pane.SaveEntire(false);
 						settings.SetValue("isActive", MainWindow.DockSite.ActiveWindow == paneWnd);
 						panes.Add(settings);
 					}
@@ -197,7 +205,7 @@
 
 				var navBar = _settings.GetValue<SettingsStorage>("navBar");
 				MainWindow.CurrentSources.SelectedIndex = navBar.GetValue<int>("SelectedSource");
-				MainWindow.CurrentConverters.SelectedIndex = navBar.GetValue<int>("SelectedConverter");
+				MainWindow.CurrentTools.SelectedIndex = navBar.GetValue<int?>("SelectedTool") ?? navBar.GetValue<int>("SelectedConverter");
 
 				var panes = _settings.GetValue<IEnumerable<SettingsStorage>>("panes").ToArray();
 				var wnds = MainWindow.DockSite.DocumentWindows.OfType<PaneWindow>().ToArray();
@@ -235,13 +243,15 @@
 
 				if (activeWnd != null)
 					activeWnd.Activate();
-
-				DriveCache.Instance.NewDriveCreated += s => { lock (_timerSync) _needToSave = true; };
-				DatabaseConnectionCache.Instance.NewConnectionCreated += c => { lock (_timerSync) _needToSave = true; };
 			}
 			catch (Exception ex)
 			{
 				ex.LogError();
+			}
+			finally
+			{
+				DriveCache.Instance.NewDriveCreated += s => { lock (_timerSync) _needToSave = true; };
+				DatabaseConnectionCache.Instance.NewConnectionCreated += c => { lock (_timerSync) _needToSave = true; };
 			}
 		}
 

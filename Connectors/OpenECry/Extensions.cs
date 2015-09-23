@@ -10,6 +10,7 @@ namespace StockSharp.OpenECry
 
 	using OEC.Data;
 
+	using StockSharp.Algo;
 	using StockSharp.Messages;
 	using StockSharp.Localization;
 
@@ -41,31 +42,15 @@ namespace StockSharp.OpenECry
 			return SecurityTypes.Stock;
 		}
 
-		public static decimal Cast(this OEC.API.Contract contract, double value)
+		public static decimal? Cast(this OEC.API.Contract contract, double value)
 		{
-			var d = value.SafeCast();
+			var d = value.ToDecimal();
 
-			if (d == 0)
-				return 0;
+			if (d == null)
+				return null;
 
 			var priceStep = (decimal)contract.TickSize;
-			return MathHelper.Round((decimal)value, priceStep, priceStep.GetCachedDecimals());
-		}
-
-		public static decimal SafeCast(this double value)
-		{
-			if (value.IsNaN())
-				return 0;
-
-			return (decimal)value;
-		}
-
-		public static decimal SafeCast(this float value)
-		{
-			if (value.IsNaN())
-				return 0;
-
-			return (decimal)value;
+			return MathHelper.Round(d.Value, priceStep, priceStep.GetCachedDecimals());
 		}
 
 		public static CurrencyTypes ToCurrency(this string str)
@@ -83,10 +68,10 @@ namespace StockSharp.OpenECry
 		}
 
 		/// <summary>
-		/// Получить <see cref="SecurityStates"/> для инструмента, соответствующего контракту <paramref name="contract"/>.
+		/// To get <see cref="SecurityStates"/> for the instrument according to the <paramref name="contract" /> contract.
 		/// </summary>
-		/// <param name="contract">Контракт OEC.</param>
-		/// <returns>Состояние инструмента <see cref="SecurityStates"/>.</returns>
+		/// <param name="contract">The OEC contract.</param>
+		/// <returns>The instrument condition <see cref="SecurityStates"/>.</returns>
 		public static SecurityStates GetSecurityState(this OEC.API.Contract contract)
 		{
 			var times = contract.GetWorkingTimesUtc();
@@ -95,10 +80,10 @@ namespace StockSharp.OpenECry
 		}
 
 		/// <summary>
-		/// Получить время торгов по инструменту.
+		/// To get the trading time by the instrument.
 		/// </summary>
-		/// <param name="contract">Контракт OEC.</param>
-		/// <returns>Список диапазонов времени дня (UTC), в течение которых инструмент торгуется.</returns>
+		/// <param name="contract">The OEC contract.</param>
+		/// <returns>The list of time ranges of day (UTC), during which the instrument is traded.</returns>
 		public static Range<TimeSpan>[] GetWorkingTimesUtc(this OEC.API.Contract contract)
 		{
 			// sometimes OEC returns timespans for working time > 24 hours (some internal oec date conversion problem)
@@ -166,10 +151,11 @@ namespace StockSharp.OpenECry
 			}
 		}
 
-		public static TriggerType ToOec(this Level1Fields type)
+		public static TriggerType ToOec(this Level1Fields? type)
 		{
 			switch (type)
 			{
+				case null:
 				case Level1Fields.LastTradePrice:
 					return TriggerType.Last;
 				case Level1Fields.BestBidPrice:

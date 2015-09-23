@@ -1,4 +1,4 @@
-﻿namespace StockSharp.Oanda
+namespace StockSharp.Oanda
 {
 	using System;
 	using System.Linq;
@@ -11,10 +11,18 @@
 	using StockSharp.Messages;
 	using StockSharp.Oanda.Native.DataTypes;
 
+	/// <summary>
+	/// The messages adapter for OANDA (REST protocol).
+	/// </summary>
 	partial class OandaMessageAdapter
 	{
 		private const string _orderImit = "marketIfTouched";
 		private readonly CachedSynchronizedDictionary<string, int> _accountIds = new CachedSynchronizedDictionary<string, int>();
+
+		private static long GetExpiryTime(OrderMessage message)
+		{
+			return (message.ExpiryDate ?? DateTime.UtcNow.EndOfDay().ApplyTimeZone(TimeZoneInfo.Utc)).ToOanda();
+		}
 
 		private void ProcessOrderRegisterMessage(OrderRegisterMessage message)
 		{
@@ -30,7 +38,7 @@
 			var response = _restClient.CreateOrder(GetAccountId(message.PortfolioName),
 				message.SecurityId.ToOanda(), (int)message.Volume, message.Side.To<string>().ToLowerInvariant(),
 				type,
-				(message.ExpiryDate ?? DateTime.Today.EndOfDay()).ToOanda(),
+				GetExpiryTime(message),
 				message.Price,
 				condition == null ? null : condition.LowerBound,
 				condition == null ? null : condition.UpperBound,
@@ -104,7 +112,7 @@
 			var response = _restClient.ModifyOrder(GetAccountId(message.PortfolioName),
 				message.OldOrderId.Value,
 				(int)message.Volume,
-				(message.ExpiryDate ?? DateTime.Today.EndOfDay()).ToOanda(),
+				GetExpiryTime(message),
 				message.Price,
 				condition == null ? null : condition.LowerBound,
 				condition == null ? null : condition.UpperBound,

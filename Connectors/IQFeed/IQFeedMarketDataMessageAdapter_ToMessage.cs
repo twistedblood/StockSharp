@@ -1,4 +1,4 @@
-﻿namespace StockSharp.IQFeed
+namespace StockSharp.IQFeed
 {
 	using System;
 	using System.Collections.Generic;
@@ -10,6 +10,9 @@
 	using StockSharp.Messages;
 	using StockSharp.Algo;
 
+	/// <summary>
+	/// The messages adapter for IQFeed.
+	/// </summary>
 	partial class IQFeedMarketDataMessageAdapter
 	{
 		private IEnumerable<Message> ToSecurityFundamentalMessages(string value)
@@ -267,15 +270,17 @@
 		{
 			var parts = value.SplitByComma();
 
+			var timeFormat = parts[3].Contains(' ') ? "yyyyMMdd HHmmss" : "yyyyMMddHHmmss";
+
 			var msg = new NewsMessage
 			{
 				Source = parts[0],
 				Id = parts[1],
-				ServerTime = parts[3].ToDateTime("yyyyMMdd HHmmss").ApplyTimeZone(TimeHelper.Est),
+				ServerTime = parts[3].ToDateTime(timeFormat).ApplyTimeZone(TimeHelper.Est),
 				Headline = parts[4],
 			};
 
-			// новость может приходит без указания инструмента
+			// news received without associated instrument
 			if (parts[2].IsEmpty())
 				return msg;
 
@@ -401,7 +406,7 @@
 				ClosePrice = parts[6].To<decimal>(),
 				TotalVolume = parts[8].To<decimal>(),
 				TotalTicks = parts[9].To<int?>() ?? 0,
-				State = parts[1][1] == 'U' ? CandleStates.Changed : CandleStates.Finished
+				State = parts[1][1] == 'U' ? CandleStates.Active : CandleStates.Finished
 			};
 	}
 }

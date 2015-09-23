@@ -8,14 +8,14 @@ namespace StockSharp.Logging
 	using StockSharp.Localization;
 
 	/// <summary>
-	/// Логгер стратегии, записывающий данные в отладочное окно.
+	/// The strategy logger that records the data to the debug window.
 	/// </summary>
 	public class DebugLogListener : LogListener
 	{
 		/// <summary>
-		/// Записать сообщения.
+		/// To record messages.
 		/// </summary>
-		/// <param name="messages">Отладочные сообщения.</param>
+		/// <param name="messages">Debug messages.</param>
 		protected override void OnWriteMessages(IEnumerable<LogMessage> messages)
 		{
 			var sb = new StringBuilder();
@@ -24,6 +24,15 @@ namespace StockSharp.Logging
 
 			foreach (var message in messages)
 			{
+				if (message.IsDispose)
+				{
+					if (sb.Length > 0)
+						Dump(currLevel, sb);
+
+					Dispose();
+					return;
+				}
+
 				if (message.Level != currLevel)
 				{
 					Dump(currLevel, sb);
@@ -59,28 +68,5 @@ namespace StockSharp.Logging
 
 			builder.Clear();
 		}
-
-		///// <summary>
-		///// Записать сообщение.
-		///// </summary>
-		///// <param name="message">Отладочное сообщение.</param>
-		//protected override void OnWriteMessage(LogMessage message)
-		//{
-		//	switch (message.Level)
-		//	{
-		//		case LogLevels.Debug:
-		//		case LogLevels.Info:
-		//			Trace.TraceInformation("{0} {1}", message.Source.Name, message.Message);
-		//			break;
-		//		case LogLevels.Warning:
-		//			Trace.TraceWarning("{0} {1}", message.Source.Name, message.Message);
-		//			break;
-		//		case LogLevels.Error:
-		//			Trace.TraceError("{0} {1}", message.Source.Name, message.Message);
-		//			break;
-		//		default:
-		//			throw new ArgumentOutOfRangeException("message");
-		//	}
-		//}
 	}
 }

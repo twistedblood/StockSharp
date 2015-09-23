@@ -301,7 +301,7 @@ namespace StockSharp.Studio
 		{
 			EmulationService.EmulationConnector.AddInfoLog(LocalizedStrings.Str3581);
 
-			var parameters = _parameters.Where(p => p.IsEnabled).ToList();
+			var parameters = _parameters.Where(p => p.IsEnabled).ToArray();
 
 			parameters.ForEach(pv => pv.Value = pv.From);
 
@@ -315,7 +315,7 @@ namespace StockSharp.Studio
 
 				yield return strategy;
 			}
-			while (GetNext(parameters, parameters.Count - 1));
+			while (GetNext(parameters, parameters.Length - 1));
 
 			EmulationService.EmulationConnector.AddInfoLog(LocalizedStrings.Str3583);
 		}
@@ -439,7 +439,7 @@ namespace StockSharp.Studio
 			strategy.Reseted += () =>
 			{
 				var settings = EmulationService.EmulationSettings;
-				new StartStrategyCommand(strategy, settings.StartTime, settings.StopTime, settings.UseCandlesTimeFrame, true).Process(this);
+				new StartStrategyCommand(strategy, settings.StartTime, settings.StopTime, null, true).Process(this);
 			};
 
 			new OpenStrategyCommand(strategy, Properties.Resources.EmulationStrategyContent).Process(strategy.StrategyInfo);

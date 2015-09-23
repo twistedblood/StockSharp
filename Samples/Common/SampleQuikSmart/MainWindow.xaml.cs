@@ -35,6 +35,8 @@ namespace SampleQuikSmart
 			InitializeComponent();
 			Instance = this;
 
+			Title = Title.Put("QUIK+SmartCOM");
+
 			_ordersWindow.MakeHideable();
 			_securitiesWindow.MakeHideable();
 
@@ -124,7 +126,7 @@ namespace SampleQuikSmart
 						Version = FixVersions.Fix44_Lua,
 						RequestAllPortfolios = true,
 						MarketData = FixMarketData.None,
-						UtcOffset = TimeHelper.Moscow.BaseUtcOffset
+						TimeZone = TimeHelper.Moscow
 					};
 					var quikMd = new FixMessageAdapter(Connector.TransactionIdGenerator)
 					{
@@ -137,7 +139,7 @@ namespace SampleQuikSmart
 						Version = FixVersions.Fix44_Lua,
 						RequestAllSecurities = true,
 						MarketData = FixMarketData.MarketData,
-						UtcOffset = TimeHelper.Moscow.BaseUtcOffset
+						TimeZone = TimeHelper.Moscow
 					};
 					quikMd.RemoveTransactionalSupport();
 

@@ -416,6 +416,11 @@
 			get { return _adapter.OrderStatusRequired; }
 		}
 
+		string IMessageAdapter.AssociatedBoardCode
+		{
+			get { return _adapter.AssociatedBoardCode; }
+		}
+
 		OrderCondition IMessageAdapter.CreateOrderCondition()
 		{
 			return _adapter.CreateOrderCondition();
@@ -424,6 +429,11 @@
 		bool IMessageAdapter.IsConnectionAlive()
 		{
 			return _adapter.IsConnectionAlive();
+		}
+
+		IOrderLogMarketDepthBuilder IMessageAdapter.CreateOrderLogMarketDepthBuilder(SecurityId securityId)
+		{
+			return _adapter.CreateOrderLogMarketDepthBuilder(securityId);
 		}
 	}
 }
